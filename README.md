@@ -28,12 +28,13 @@ proc fizzbuzz($n)
   $block = case $both L0; $az L1; $bz L2; $none L3
   exec $block
 L0:
-  out "FizzBuzz"
+  out "FizzBuzz\n"
 L1:
-  out "Fizz"
+  out "Fizz\n"
 L2:
-  out "Buzz"
+  out "Buzz\n"
 L3:
   out $n
+  out "\n"
 end
 ```

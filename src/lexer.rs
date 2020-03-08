@@ -1,6 +1,6 @@
 use crate::error::{ErrorKind, MachinaError};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
     // symbols
     LParen,      // (
@@ -13,16 +13,20 @@ pub enum TokenKind {
     Colon,       // :
     Equals,      // =
 
-    // operations
+    // instructions
     Proc,
     End,
-    Case,
     Exec,
     If,
     Jmp,
     JmpT,
     JmpF,
+    Out,
+
+    // expressions
+    In,
     Call,
+    Case,
     Add,
     Sub,
     Mul,
@@ -38,16 +42,14 @@ pub enum TokenKind {
     Or,
     Xor,
     Not,
-    In,
-    Out,
-
+    Null,
 
     // values
     String,
     Integer,
     Decimal,
     Variable,
-    Identifier,
+    Label,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -62,13 +64,15 @@ fn get_keyword(key: &str) -> Option<TokenKind> {
     match key {
         "proc" => Some(TokenKind::Proc),
         "end"  => Some(TokenKind::End),
-        "case" => Some(TokenKind::Case),
-        "exec" => Some(TokenKind::Exec),
         "if"   => Some(TokenKind::If),
         "jmp"  => Some(TokenKind::Jmp),
         "jmpt" => Some(TokenKind::JmpT),
         "jmpf" => Some(TokenKind::JmpF),
+        "exec" => Some(TokenKind::Exec),
+        "out"  => Some(TokenKind::Out),
+        "in"   => Some(TokenKind::In),
         "call" => Some(TokenKind::Call),
+        "case" => Some(TokenKind::Case),
         "add"  => Some(TokenKind::Add),
         "sub"  => Some(TokenKind::Sub),
         "mul"  => Some(TokenKind::Mul),
@@ -84,8 +88,7 @@ fn get_keyword(key: &str) -> Option<TokenKind> {
         "or"   => Some(TokenKind::Or),
         "xor"  => Some(TokenKind::Xor),
         "not"  => Some(TokenKind::Not),
-        "in"   => Some(TokenKind::In),
-        "out"  => Some(TokenKind::Out),
+        "null" => Some(TokenKind::Null),
         _ => None
     }
 }
@@ -239,7 +242,7 @@ where
             }
             None => {
                 Ok(Token {
-                    kind: TokenKind::Identifier,
+                    kind: TokenKind::Label,
                     value: Some(raw),
                     line: self.line,
                 })

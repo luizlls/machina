@@ -1,6 +1,7 @@
 mod value;
 mod error;
 mod lexer;
+mod ast;
 
 use crate::lexer::{Lexer};
 use std::fs;
@@ -8,8 +9,8 @@ use std::fs;
 fn main() {
     let args = std::env::args().collect::<Vec<String>>();
     if args.len() <= 1 {
-        println!("Machina v{}", env!("CARGO_PKG_VERSION"));
-        println!("Use: machina <filename> to execute a file");
+        println!("Machina v {}", env!("CARGO_PKG_VERSION"));
+        println!("Use 'machina <file name>' to compile and/or execute a file");
     } else {
         file(args.get(1).unwrap().to_string());
     }
