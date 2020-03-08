@@ -10,7 +10,7 @@ pub enum ErrorKind {
      // keyword
     InvalidKeyword(String),
      // expected, found
-    ExpectedToken(Vec<String>, String),
+    UnexpectedToken(Vec<String>, String),
 }
 
 impl Display for ErrorKind {
@@ -28,7 +28,7 @@ impl Display for ErrorKind {
             ErrorKind::InvalidKeyword(keyword) => {
                 write!(f, "Invalid keyword {}", keyword)
             }
-            ErrorKind::ExpectedToken(expected, found) => {
+            ErrorKind::UnexpectedToken(expected, found) => {
                 write!(f, "Expected {}, found {}", expected.join(" or "), found)
             }
         }

@@ -1,7 +1,8 @@
-mod value;
+mod ast;
 mod error;
 mod lexer;
-mod ast;
+mod parser;
+mod value;
 
 use crate::lexer::{Lexer};
 use std::fs;

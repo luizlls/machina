@@ -1,3 +1,5 @@
+use crate::lexer::Token;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Instruction {
     /// value
@@ -30,6 +32,8 @@ pub enum Expression {
     
     /// -
     Input,
+
+    Assignment(String, Box<Expression>),
 
     /// proc, arguments
     Call(Label, Vec<Value>),
@@ -81,9 +85,26 @@ pub enum Value {
     /// value
     Decimal(f64),
 
-    /// value
+    /// label
     Variable(String),
 
-    /// value
+    /// label
     Label(Label),
+}
+
+#[derive(Debug, Clone)]
+pub struct RawFunction {
+    pub tokens: Vec<Token>,
+    pub metadata: MetaData,
+}
+
+#[derive(Debug, Clone)]
+pub struct Block {
+    pub instructions: Vec<Instruction>,
+}
+
+#[derive(Debug, Clone)]
+pub struct MetaData {
+    pub name: String,
+    pub line: u32,
 }
