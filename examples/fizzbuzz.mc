@@ -2,7 +2,7 @@ define main
   $i = 0
   jmp LOOP
 LOOP:
-  call fizzbuzz $count
+  call fizzbuzz $i
   $i = add $i 1
   $l = lte $i 100
   jmpt $l LOOP

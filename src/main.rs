@@ -4,7 +4,7 @@ mod lexer;
 mod parser;
 mod value;
 
-use crate::lexer::{Lexer};
+use crate::parser::{Parser};
 use std::fs;
 
 fn main() {
@@ -23,12 +23,13 @@ fn file(file: String) {
 }
 
 fn exec(source: String) {
-    for res in Lexer::new(source.chars()) {
-        match res {
-            Ok(token) => {
-                println!("{:?}", token);
-            }
-            Err(err) => {
+    let parsed = Parser::new(&source).parse();
+    match parsed {
+        Ok(module) => {
+            println!("{:#?}", module);
+        }
+        Err(errors) => {
+            for err in errors {
                 println!("Error {:?}", err);
             }
         }

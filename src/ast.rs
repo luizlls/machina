@@ -1,4 +1,5 @@
 use crate::lexer::Token;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Instruction {
@@ -19,6 +20,9 @@ pub enum Instruction {
     
     /// value
     Output(Value),
+
+    /// name, expr
+    Assignment(String, Box<Expression>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -32,8 +36,6 @@ pub enum Expression {
     
     /// -
     Input,
-
-    Assignment(String, Box<Expression>),
 
     /// proc, arguments
     Call(Label, Vec<Value>),
@@ -72,7 +74,7 @@ pub enum Unary {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Label(String);
+pub struct Label(pub String);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -93,18 +95,41 @@ pub enum Value {
 }
 
 #[derive(Debug, Clone)]
-pub struct RawFunction {
+pub struct RawParsedFunction {
+    pub name: Label,
+    pub line: u32,
     pub tokens: Vec<Token>,
-    pub metadata: MetaData,
+}
+
+#[derive(Debug, Clone)]
+pub struct OptimizedFunction {
+    pub name: Label,
+    pub line: u32,
+    pub blocks: Vec<Block>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Block {
+    pub label: Label,
+    pub line: u32,
     pub instructions: Vec<Instruction>,
 }
 
 #[derive(Debug, Clone)]
-pub struct MetaData {
-    pub name: String,
-    pub line: u32,
+pub enum Function {
+    RawParsedFunction(RawParsedFunction),
+    OptimizedFunction(OptimizedFunction)
+}
+
+#[derive(Debug, Clone)]
+pub struct Module {
+    pub functions: HashMap<String, Function>
+}
+
+impl Module {
+    pub fn new() -> Module {
+        Module {
+            functions: HashMap::new()
+        }
+    }
 }

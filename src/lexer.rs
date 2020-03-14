@@ -191,7 +191,7 @@ where
                     self.make_token(TokenKind::RBracket)
                 }
                 Some(_) => {
-                    return Some(Err((ErrorKind::InvalidCharacter, self.line)))
+                    return Some(Err(MachinaError { kind: ErrorKind::InvalidCharacter, line: self.line }))
                 }
                 None => {
                     return None
@@ -240,8 +240,8 @@ where
         match get_keyword(&raw) {
             Some(kind) => {
                 Ok(Token {
+                    value: None,
                     kind,
-                    value: Some(raw),
                     line: self.line,
                 })
             }
@@ -332,7 +332,10 @@ where
                             raw.push(chr);
                         }
                         None => {
-                            return Err((ErrorKind::InvalidEscapeCharacter, self.line));
+                            return Err(MachinaError { 
+                                kind: ErrorKind::InvalidEscapeCharacter,
+                                line: self.line
+                            });
                         }
                     }
                 }
@@ -344,7 +347,10 @@ where
                     }
                 }
                 None => {
-                    return Err((ErrorKind::UnterminatedString, self.line));
+                    return Err(MachinaError { 
+                        kind: ErrorKind::UnterminatedString,
+                        line: self.line
+                    });
                 }
             }
         }

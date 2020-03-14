@@ -35,6 +35,10 @@ impl Display for ErrorKind {
     }
 }
 
-pub type MachinaError = (ErrorKind, u32);
+#[derive(Debug, Clone)]
+pub struct MachinaError {
+    pub kind: ErrorKind,
+    pub line: u32
+}
 
 impl Error for ErrorKind { }
