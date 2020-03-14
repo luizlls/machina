@@ -5,7 +5,7 @@ use std::fmt::{Display};
 #[derive(Debug, Clone, PartialEq)]
 pub enum ErrorKind {
     InvalidEscapeCharacter,
-    InvalidCharacter,
+    InvalidCharacter(char),
     UnterminatedString,
      // keyword
     InvalidKeyword(String),
@@ -19,8 +19,8 @@ impl Display for ErrorKind {
             ErrorKind::InvalidEscapeCharacter => {
                 write!(f, "Invalid escape character")
             }
-            ErrorKind::InvalidCharacter => {
-                write!(f, "Invalid character")
+            ErrorKind::InvalidCharacter(chr) => {
+                write!(f, "Invalid character `{}`", chr)
             }
             ErrorKind::UnterminatedString => {
                 write!(f, "Unterminated string")

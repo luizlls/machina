@@ -37,8 +37,8 @@ impl<'a> Parser<'a> {
                         Function::RawParsedFunction(function));
                 }
                 Err(err) => {
-                    errors.push(dbg!(err));
-                    self.recover();
+                    errors.push(err);
+                    self.recover(&mut errors);
                 }
             }
         }
@@ -60,18 +60,17 @@ impl<'a> Parser<'a> {
 
         while !self.curr_is(TokenKind::End)
            && !self.curr_is(TokenKind::EOF) {
-            dbg!(self.curr_kind());
             tokens.push(self.curr.clone().unwrap());
             self.next()?;
         }
 
         self.eat(TokenKind::End)?;
 
-        Ok(dbg!(RawParsedFunction {
+        Ok(RawParsedFunction {
             name,
             line,
             tokens
-        }))
+        })
     }
 
     fn parse_label(&mut self) -> ParserResult<Label> {
@@ -135,10 +134,15 @@ impl<'a> Parser<'a> {
         self.peek_kind() == tt
     }
 
-    fn recover(&mut self) {
-        while  !self.curr_is(TokenKind::End)
-            && !self.curr_is(TokenKind::EOF) {
-            let _ = self.next();
+    fn recover(&mut self, errors: &mut Vec<MachinaError>) {
+        while !(self.curr_is(TokenKind::EOF)
+             || self.curr_is(TokenKind::Define)) {
+            match self.next() {
+                Err(err) => {
+                    errors.push(err)
+                }
+                _ => {}
+            }
         }
     }
 

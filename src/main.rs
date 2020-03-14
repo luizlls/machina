@@ -30,7 +30,7 @@ fn exec(source: String) {
         }
         Err(errors) => {
             for err in errors {
-                println!("Error {:?}", err);
+                println!("Error [line: {}] {}", err.line, err.kind);
             }
         }
     }

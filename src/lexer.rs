@@ -190,8 +190,9 @@ where
                 Some(']') => {
                     self.make_token(TokenKind::RBracket)
                 }
-                Some(_) => {
-                    return Some(Err(MachinaError { kind: ErrorKind::InvalidCharacter, line: self.line }))
+                Some(chr) => {
+                    self.next_char();
+                    return Some(Err(MachinaError { kind: ErrorKind::InvalidCharacter(chr), line: self.line }))
                 }
                 None => {
                     return None
