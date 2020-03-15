@@ -7,8 +7,6 @@ pub enum ErrorKind {
     InvalidEscapeCharacter,
     InvalidCharacter(char),
     UnterminatedString,
-     // keyword
-    InvalidKeyword(String),
      // expected, found
     UnexpectedToken(Vec<String>, String),
 }
@@ -24,9 +22,6 @@ impl Display for ErrorKind {
             }
             ErrorKind::UnterminatedString => {
                 write!(f, "Unterminated string")
-            }
-            ErrorKind::InvalidKeyword(keyword) => {
-                write!(f, "Invalid keyword {}", keyword)
             }
             ErrorKind::UnexpectedToken(expected, found) => {
                 write!(f, "Expected {}, found {}", expected.join(" or "), found)

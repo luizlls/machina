@@ -1,9 +1,8 @@
-define main
-  $n = call fib $20
-  out $n
+define main:
+  out call fib $20
 end
 
-define fib($n)
+define fib($n):
   $a = lte $n 1
   jmpt $a L0
   $1 = sub n 1

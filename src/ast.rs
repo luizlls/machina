@@ -11,38 +11,41 @@ pub enum Instruction {
 
     /// destination
     Jmp(Label),
-    
+
     /// test, destination
     JmpT(Value, Label),
-    
+
     /// test, destination
     JmpF(Value, Label),
-    
+
     /// value
     Output(Value),
 
-    /// name, expr
-    Assignment(String, Box<Expression>),
+    /// variable_name, expr
+    VariableAssignment(Variable, Box<Expression>),
+
+    /// register_num, expr
+    RegisterAssignment(Register, Box<Expression>)
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
-    
+
     /// value
     Value(Value),
 
     /// -
     Null,
-    
+
     /// -
     Input,
 
     /// proc, arguments
     Call(Label, Vec<Value>),
-    
+
     /// possibilities (test, result)
     Case(Vec<(Value, Label)>),
-    
+
     /// operation, lhs, rhs
     Binary(Binary, Value, Value),
 
@@ -77,6 +80,12 @@ pub enum Unary {
 pub struct Label(pub String);
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct Variable(pub String);
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Register(pub u32);
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     /// value
     String(String),
@@ -88,23 +97,24 @@ pub enum Value {
     Decimal(f64),
 
     /// label
-    Variable(String),
+    Variable(Variable),
 
     /// label
     Label(Label),
 }
 
 #[derive(Debug, Clone)]
-pub struct RawParsedFunction {
+pub struct BasicFunction {
     pub name: Label,
     pub line: u32,
     pub tokens: Vec<Token>,
 }
 
 #[derive(Debug, Clone)]
-pub struct OptimizedFunction {
+pub struct FinalFunction {
     pub name: Label,
     pub line: u32,
+    pub registers_size: u32,
     pub blocks: Vec<Block>,
 }
 
@@ -117,8 +127,8 @@ pub struct Block {
 
 #[derive(Debug, Clone)]
 pub enum Function {
-    RawParsedFunction(RawParsedFunction),
-    OptimizedFunction(OptimizedFunction)
+    BasicFunction(BasicFunction),
+    FinalFunction(FinalFunction)
 }
 
 #[derive(Debug, Clone)]

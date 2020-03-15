@@ -1,4 +1,4 @@
-define main
+define main:
   $i = 0
   jmp LOOP
 LOOP:
@@ -8,7 +8,7 @@ LOOP:
   jmpt $l LOOP
 end
 
-define fizzbuzz($n)
+define fizzbuzz($n):
   $a = mod $n 3
   $b = mod $n 5
   $az = eq $a 0
