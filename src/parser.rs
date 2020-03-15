@@ -91,28 +91,42 @@ impl<'a> Parser<'a> {
 
         self.eat(TokenKind::Colon)?;
 
+        let mut instructions = vec![];
+
+        while !self.is_block() && self.curr.is_some() {
+            instructions.push(self.parse_instruction()?);
+        }
+
+        let mut blocks = vec![];
+
+        blocks.push(Block {
+            label: function.name.clone(),
+            line:  function.line + 1,
+            instructions,
+        });
+
+        if self.is_block() {
+            while self.curr.is_some() {
+                blocks.push(self.parse_block()?);
+            }
+        }
+
         Ok(FinalFunction {
             name: function.name,
             line: function.line,
+            args,
             registers_size: 0,
-            blocks: Vec::with_capacity(0),
+            blocks,
         })
     }
 
     fn parse_instruction(&mut self) -> ParserResult<Instruction> {
         match self.curr_kind() {
-            TokenKind::Exec => {
-                self.eat(TokenKind::Exec)?;
+            TokenKind::Variable => {
                 let target = Target::Variable(self.parse_variable()?);
-                Ok(Instruction::Exec(target))
-            }
-            TokenKind::If => {
-                self.eat(TokenKind::If)?;
-                let test = self.parse_value()?;
-                let then = self.parse_label()?;
-                self.eat(TokenKind::Semicolon)?;
-                let else_ = self.parse_label()?;
-                Ok(Instruction::If(test, then, else_))
+                self.eat(TokenKind::Equals)?;
+                let expr   = self.parse_expression()?;
+                Ok(Instruction::Assignment(target, expr))
             }
             TokenKind::Jmp => {
                 self.eat(TokenKind::Jmp)?;
@@ -129,21 +143,43 @@ impl<'a> Parser<'a> {
                 self.eat(TokenKind::JmpF)?;
                 let test = self.parse_value()?;
                 let dest = self.parse_label()?;
-                Ok(Instruction::JmpT(test, dest))
+                Ok(Instruction::JmpF(test, dest))
+            }
+            TokenKind::If => {
+                self.eat(TokenKind::If)?;
+                let test = self.parse_value()?;
+                let then = self.parse_label()?;
+                self.eat(TokenKind::Semicolon)?;
+                let else_ = self.parse_label()?;
+                Ok(Instruction::If(test, then, else_))
+            }
+            TokenKind::Case => {
+                self.eat(TokenKind::Case)?;
+                let cases = self.parse_seq_of(TokenKind::Semicolon, |this| {
+                    let test   = this.parse_value()?;
+                    let target = this.parse_label()?;
+                    Ok((test, target))
+                })?;
+                Ok(Instruction::Case(cases))
+            }
+            TokenKind::Ret => {
+                let initial_line = self.line();
+                self.eat(TokenKind::Ret)?;
+                let value = if self.line() == initial_line {
+                    Some(self.parse_value()?)
+                } else {
+                    None
+                };
+                Ok(Instruction::Return(value))
             }
             TokenKind::Out => {
                 self.eat(TokenKind::Out)?;
                 let value = self.parse_value()?;
                 Ok(Instruction::Output(value))
             }
-            TokenKind::Variable => {
-                let target = Target::Variable(self.parse_variable()?);
-                let expr   = self.parse_expression()?;
-                Ok(Instruction::Assignment(target, expr))
-            }
             _ => {
                 Err(self.unexpected(&[
-                    TokenKind::Exec,
+                    TokenKind::Case,
                     TokenKind::If,
                     TokenKind::Jmp,
                     TokenKind::JmpT,
@@ -174,15 +210,6 @@ impl<'a> Parser<'a> {
                 let args = self.parse_seq_of(TokenKind::Comma, Self::parse_value)?;
                 Ok(Expression::Call(func, args))
             }
-            TokenKind::Case => {
-                self.eat(TokenKind::Case)?;
-                let cases = self.parse_seq_of(TokenKind::Semicolon, |this| {
-                    let test   = this.parse_value()?;
-                    let target = this.parse_label()?;
-                    Ok((test, target))
-                })?;
-                Ok(Expression::Case(cases))
-            }
               TokenKind::Add
             | TokenKind::Sub
             | TokenKind::Mul
@@ -197,20 +224,45 @@ impl<'a> Parser<'a> {
             | TokenKind::And
             | TokenKind::Or
             | TokenKind::Xor => {
+                let operator = Binary::from(self.curr_kind());
                 self.eat(self.curr_kind())?;
                 let lhs = self.parse_value()?;
                 let rhs = self.parse_value()?;
-                Ok(Expression::Binary(Binary::from(self.curr_kind()), lhs, rhs))
+                Ok(Expression::Binary(operator, lhs, rhs))
             }
             TokenKind::Not => {
+                let operator = Unary::from(self.curr_kind());
                 self.eat(self.curr_kind())?;
                 let rhs = self.parse_value()?;
-                Ok(Expression::Unary(Unary::from(self.curr_kind()), rhs))
+                Ok(Expression::Unary(operator, rhs))
             }
             _ => {
                 Err(self.unexpected(&[]))
             }
         }
+    }
+
+    fn parse_block(&mut self) -> ParserResult<Block> {
+        let label = self.parse_label()?;
+        let line  = self.line();
+
+        self.eat(TokenKind::Colon)?;
+
+        let mut instructions = vec![];
+
+        while self.curr.is_some() && !self.is_block() {
+            instructions.push(self.parse_instruction()?);
+        }
+
+        Ok(Block {
+            label,
+            line,
+            instructions
+        })
+    }
+
+    fn is_block(&self) -> bool {
+        self.curr_is(TokenKind::Label) && self.peek_is(TokenKind::Colon)
     }
 
     fn parse_args(&mut self) -> ParserResult<Vec<Variable>> {
@@ -222,7 +274,7 @@ impl<'a> Parser<'a> {
 
     fn parse_variable(&mut self) -> ParserResult<Variable> {
         match self.curr.clone() {
-            Some(Token { kind: TokenKind::Variable, value: Some(variable), line }) => {
+            Some(Token { kind: TokenKind::Variable, value: Some(variable), .. }) => {
                 let _ = self.next()?;
                 Ok(Variable(variable))
             }
@@ -232,7 +284,7 @@ impl<'a> Parser<'a> {
 
     fn parse_label(&mut self) -> ParserResult<Label> {
         match self.curr.clone() {
-            Some(Token { kind: TokenKind::Label, value: Some(label), line }) => {
+            Some(Token { kind: TokenKind::Label, value: Some(label), .. }) => {
                 self.next()?;
                 Ok(Label(label))
             }

@@ -25,6 +25,7 @@ pub enum TokenKind {
     JmpT,
     JmpF,
     Out,
+    Ret,
 
     // expressions
     In,
@@ -77,6 +78,7 @@ fn get_keyword(key: &str) -> Option<TokenKind> {
         "exec" => Some(TokenKind::Exec),
         "out"  => Some(TokenKind::Out),
         "in"   => Some(TokenKind::In),
+        "ret"  => Some(TokenKind::Ret),
         "call" => Some(TokenKind::Call),
         "case" => Some(TokenKind::Case),
         "add"  => Some(TokenKind::Add),
@@ -413,6 +415,7 @@ impl fmt::Display for TokenKind {
             TokenKind::JmpF      => write!(f, "jmpf"),
             TokenKind::Out       => write!(f, "out"),
             TokenKind::In        => write!(f, "in"),
+            TokenKind::Ret       => write!(f, "ret"),
             TokenKind::Call      => write!(f, "call"),
             TokenKind::Case      => write!(f, "case"),
             TokenKind::Add       => write!(f, "add"),

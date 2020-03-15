@@ -3,11 +3,14 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Instruction {
-    /// target
-    Exec(Target),
+    /// target, expr
+    Assignment(Target, Expression),
 
     /// test, then, else
     If(Value, Label, Label),
+
+    /// possibilities (test, result)
+    Case(Vec<(Value, Label)>),
 
     /// destination
     Jmp(Label),
@@ -21,30 +24,27 @@ pub enum Instruction {
     /// value
     Output(Value),
 
-    /// target, expr
-    Assignment(Target, Expression),
+    /// value
+    Return(Option<Value>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
-
-    /// value
-    Value(Value),
-
-    /// -
-    Input,
-
-    /// func, arguments
-    Call(Label, Vec<Value>),
-
-    /// possibilities (test, result)
-    Case(Vec<(Value, Label)>),
 
     /// operation, lhs, rhs
     Binary(Binary, Value, Value),
 
     /// operation, value
     Unary(Unary, Value),
+
+    /// func, arguments
+    Call(Label, Vec<Value>),
+
+    /// value
+    Value(Value),
+
+    /// -
+    Input,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -146,6 +146,7 @@ pub struct BasicFunction {
 pub struct FinalFunction {
     pub name: Label,
     pub line: u32,
+    pub args: Vec<Variable>,
     pub registers_size: u32,
     pub blocks: Vec<Block>,
 }
