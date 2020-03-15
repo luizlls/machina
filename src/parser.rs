@@ -2,17 +2,13 @@ use crate::lexer::{Lexer, Token, TokenKind};
 use crate::error::{MachinaError, ErrorKind};
 use crate::ast::*;
 
-use std::collections::VecDeque;
-
-
 type ParserResult<T> = Result<T, MachinaError>;
 
 #[derive(Debug, Clone)]
 pub struct Parser<'a> {
     lexer: Lexer<std::str::Chars<'a>>,
     curr: Option<Token>,
-    peek: Option<Token>,
-    tokens: VecDeque<Token>,
+    peek: Option<Token>
 }
 
 impl<'a> Parser<'a> {
@@ -21,7 +17,6 @@ impl<'a> Parser<'a> {
             lexer: Lexer::new(source.chars()),
             curr: None,
             peek: None,
-            tokens: VecDeque::with_capacity(0),
         }
     }
 
@@ -33,12 +28,9 @@ impl<'a> Parser<'a> {
         let _ = self.next(); // peek
 
         while self.curr.is_some() {
-            match self.parse_basic_function() {
+            match self.parse_function() {
                 Ok(function) => {
-                    let name = function.name.clone().0;
-                    module.functions.insert(
-                        name,
-                        Function::BasicFunction(function));
+                    module.functions.insert(function.name.clone(), function);
                 }
                 Err(err) => {
                     errors.push(err);
@@ -54,34 +46,11 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_basic_function(&mut self) -> ParserResult<BasicFunction> {
+    pub fn parse_function(&mut self) -> ParserResult<Function> {
         self.eat(TokenKind::Define)?;
 
         let line = self.line();
         let name = self.parse_label()?;
-
-        let mut tokens = vec![];
-
-        while !self.curr_is(TokenKind::End)
-           && !self.curr_is(TokenKind::EOF) {
-            tokens.push(self.curr.clone().unwrap());
-            self.next()?;
-        }
-
-        self.eat(TokenKind::End)?;
-
-        Ok(BasicFunction {
-            name,
-            line,
-            tokens
-        })
-    }
-
-    pub fn parse_final_function(&mut self, function: BasicFunction) -> ParserResult<FinalFunction> {
-        self.tokens = VecDeque::from(function.tokens);
-
-        self.next()?; // curr
-        self.next()?; // peek
 
         let args = if self.curr_is(TokenKind::LParen) {
             self.parse_args()?
@@ -93,29 +62,33 @@ impl<'a> Parser<'a> {
 
         let mut instructions = vec![];
 
-        while !self.is_block() && self.curr.is_some() {
+        while !self.is_block()
+           && !self.curr_is(TokenKind::EOF)
+           && !self.curr_is(TokenKind::End) {
             instructions.push(self.parse_instruction()?);
         }
 
         let mut blocks = vec![];
 
         blocks.push(Block {
-            label: function.name.clone(),
-            line:  function.line + 1,
+            line:  line + 1,
+            label: name.clone(),
             instructions,
         });
 
         if self.is_block() {
-            while self.curr.is_some() {
+            while !self.curr_is(TokenKind::EOF)
+               && !self.curr_is(TokenKind::End)  {
                 blocks.push(self.parse_block()?);
             }
         }
 
-        Ok(FinalFunction {
-            name: function.name,
-            line: function.line,
+        self.eat(TokenKind::End)?;
+
+        Ok(Function {
+            name: name,
+            line: line,
             args,
-            registers_size: 0,
             blocks,
         })
     }
@@ -153,14 +126,20 @@ impl<'a> Parser<'a> {
                 let else_ = self.parse_label()?;
                 Ok(Instruction::If(test, then, else_))
             }
-            TokenKind::Case => {
-                self.eat(TokenKind::Case)?;
+            TokenKind::Switch => {
+                self.eat(TokenKind::Switch)?;
                 let cases = self.parse_seq_of(TokenKind::Semicolon, |this| {
                     let test   = this.parse_value()?;
                     let target = this.parse_label()?;
                     Ok((test, target))
                 })?;
-                Ok(Instruction::Case(cases))
+                Ok(Instruction::Switch(cases))
+            }
+            TokenKind::Call => {
+                self.eat(TokenKind::Call)?;
+                let func = self.parse_label()?;
+                let args = self.parse_seq_of(TokenKind::Comma, Self::parse_value)?;
+                Ok(Instruction::Call(func, args))
             }
             TokenKind::Ret => {
                 let initial_line = self.line();
@@ -179,7 +158,7 @@ impl<'a> Parser<'a> {
             }
             _ => {
                 Err(self.unexpected(&[
-                    TokenKind::Case,
+                    TokenKind::Switch,
                     TokenKind::If,
                     TokenKind::Jmp,
                     TokenKind::JmpT,
@@ -250,7 +229,9 @@ impl<'a> Parser<'a> {
 
         let mut instructions = vec![];
 
-        while self.curr.is_some() && !self.is_block() {
+        while !self.is_block()
+           && !self.curr_is(TokenKind::EOF)
+           && !self.curr_is(TokenKind::End) {
             instructions.push(self.parse_instruction()?);
         }
 
@@ -275,7 +256,7 @@ impl<'a> Parser<'a> {
     fn parse_variable(&mut self) -> ParserResult<Variable> {
         match self.curr.clone() {
             Some(Token { kind: TokenKind::Variable, value: Some(variable), .. }) => {
-                let _ = self.next()?;
+                self.next()?;
                 Ok(Variable(variable))
             }
             _ => Err(self.unexpected(&[TokenKind::Variable]))
@@ -313,9 +294,8 @@ impl<'a> Parser<'a> {
                 Ok(Value::Null)
             }
             Some(Token { kind: TokenKind::Variable, value: Some(variable), .. }) => {
-                let _ = self.next()?;
-                let target = Target::Variable(Variable(variable));
-                Ok(Value::Target(target))
+                self.next()?;
+                Ok(Value::Target(Target::Variable(Variable(variable))))
             }
             _ => Err(self.unexpected(&[
                 TokenKind::String,
@@ -343,23 +323,17 @@ impl<'a> Parser<'a> {
 
     fn next(&mut self) -> ParserResult<()> {
         self.curr = self.peek.clone();
-
-        if !self.tokens.is_empty() {
-            self.peek = self.tokens.pop_front();
+        self.peek = if let Some(token) = self.lexer.next() {
+            Some(token?)
         } else {
-            self.peek = if let Some(token) = self.lexer.next() {
-                Some(token?)
-            } else {
-                None
-            };
-        }
-
+            None
+        };
         Ok(())
     }
 
     fn eat(&mut self, tkn: TokenKind) -> ParserResult<()> {
         if self.curr_kind() == tkn {
-            let _ = self.next()?;
+            self.next()?;
             Ok(())
         } else {
             Err(self.unexpected(&[tkn]))
@@ -368,7 +342,7 @@ impl<'a> Parser<'a> {
 
     fn try_eat(&mut self, kind: TokenKind) -> ParserResult<bool> {
         if self.curr_is(kind) {
-            let _ = self.next()?;
+            self.next()?;
             Ok(true)
         } else {
             Ok(false)
@@ -404,14 +378,9 @@ impl<'a> Parser<'a> {
     }
 
     fn recover(&mut self, errors: &mut Vec<MachinaError>) {
-        while !(self.curr_is(TokenKind::EOF)
-             || self.curr_is(TokenKind::Define)) {
-            match self.next() {
-                Err(err) => {
-                    errors.push(err)
-                }
-                _ => {}
-            }
+        while !self.curr_is(TokenKind::EOF)
+           && !self.curr_is(TokenKind::Define) {
+            if let Err(err) = self.next() { errors.push(err) }
         }
     }
 

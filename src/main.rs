@@ -28,15 +28,8 @@ fn exec(source: String) {
     let parsed = parser.parse();
     match parsed {
         Ok(module) => {
-            for (_, function) in module.functions {
-                match function {
-                    Function::BasicFunction(function) => {
-                        println!("{:#?}", parser.parse_final_function(function));
-                    }
-                    Function::FinalFunction(function) => {
-                        println!("{:#?}", function);
-                    }
-                }
+            for (name, function) in module.functions {
+                println!("function {} - {:#?}", name.0, function);
             }
         }
         Err(errors) => {

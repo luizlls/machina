@@ -1,4 +1,4 @@
-use crate::lexer::{Token, TokenKind};
+use crate::lexer::{TokenKind};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -10,7 +10,7 @@ pub enum Instruction {
     If(Value, Label, Label),
 
     /// possibilities (test, result)
-    Case(Vec<(Value, Label)>),
+    Switch(Vec<(Value, Label)>),
 
     /// destination
     Jmp(Label),
@@ -20,6 +20,9 @@ pub enum Instruction {
 
     /// test, destination
     JmpF(Value, Label),
+
+    /// func, arguments
+    Call(Label, Vec<Value>),
 
     /// value
     Output(Value),
@@ -102,7 +105,7 @@ impl From<TokenKind> for Unary {
 }
 
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Label(pub String);
 
 #[derive(Debug, Clone, PartialEq)]
@@ -136,18 +139,10 @@ pub enum Value {
 }
 
 #[derive(Debug, Clone)]
-pub struct BasicFunction {
-    pub name: Label,
-    pub line: u32,
-    pub tokens: Vec<Token>,
-}
-
-#[derive(Debug, Clone)]
-pub struct FinalFunction {
+pub struct Function {
     pub name: Label,
     pub line: u32,
     pub args: Vec<Variable>,
-    pub registers_size: u32,
     pub blocks: Vec<Block>,
 }
 
@@ -158,15 +153,10 @@ pub struct Block {
     pub instructions: Vec<Instruction>,
 }
 
-#[derive(Debug, Clone)]
-pub enum Function {
-    BasicFunction(BasicFunction),
-    FinalFunction(FinalFunction)
-}
 
 #[derive(Debug, Clone)]
 pub struct Module {
-    pub functions: HashMap<String, Function>
+    pub functions: HashMap<Label, Function>
 }
 
 impl Module {
