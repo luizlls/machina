@@ -24,7 +24,11 @@ impl Display for ErrorKind {
                 write!(f, "Unterminated string")
             }
             ErrorKind::UnexpectedToken(expected, found) => {
-                write!(f, "Expected {}, found {}", expected.join(" or "), found)
+                if expected.is_empty() {
+                    write!(f, "Unexpected {}", found)
+                } else {
+                    write!(f, "Expected {}, found {}", expected.join(" or "), found)
+                }
             }
         }
     }

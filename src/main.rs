@@ -5,6 +5,7 @@ mod parser;
 mod value;
 
 use crate::parser::{Parser};
+use crate::ast::{Function};
 use std::fs;
 
 fn main() {
@@ -23,10 +24,20 @@ fn file(file: String) {
 }
 
 fn exec(source: String) {
-    let parsed = Parser::new(&source).parse();
+    let mut parser = Parser::new(&source);
+    let parsed = parser.parse();
     match parsed {
         Ok(module) => {
-            println!("{:#?}", module);
+            for (_, function) in module.functions {
+                match function {
+                    Function::BasicFunction(function) => {
+                        println!("{:#?}", parser.parse_final_function(function));
+                    }
+                    Function::FinalFunction(function) => {
+                        println!("{:#?}", function);
+                    }
+                }
+            }
         }
         Err(errors) => {
             for err in errors {

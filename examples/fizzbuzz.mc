@@ -15,8 +15,8 @@ define fizzbuzz($n):
   $bz = eq $b 0
   $both = and $az $bz
   $none = eq $both 0
-  $block = case $both L0; $az L1; $bz L2; $none L3
-  exec $block
+  $case = case $both L0; $az L1; $bz L2; $none L3
+  exec $case
 L0:
   out "FizzBuzz\n"
 L1:

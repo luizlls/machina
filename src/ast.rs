@@ -1,10 +1,10 @@
-use crate::lexer::Token;
+use crate::lexer::{Token, TokenKind};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Instruction {
-    /// value
-    Exec(Label),
+    /// target
+    Exec(Target),
 
     /// test, then, else
     If(Value, Label, Label),
@@ -21,11 +21,8 @@ pub enum Instruction {
     /// value
     Output(Value),
 
-    /// variable_name, expr
-    VariableAssignment(Variable, Box<Expression>),
-
-    /// register_num, expr
-    RegisterAssignment(Register, Box<Expression>)
+    /// target, expr
+    Assignment(Target, Expression),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -35,12 +32,9 @@ pub enum Expression {
     Value(Value),
 
     /// -
-    Null,
-
-    /// -
     Input,
 
-    /// proc, arguments
+    /// func, arguments
     Call(Label, Vec<Value>),
 
     /// possibilities (test, result)
@@ -71,16 +65,54 @@ pub enum Binary {
     Xor,
 }
 
+impl From<TokenKind> for Binary {
+    fn from(kind: TokenKind) -> Self {
+        match kind {
+            TokenKind::Add => Binary::Add,
+            TokenKind::Sub => Binary::Sub,
+            TokenKind::Mul => Binary::Mul,
+            TokenKind::Div => Binary::Div,
+            TokenKind::Mod => Binary::Mod,
+            TokenKind::Eq => Binary::Eq,
+            TokenKind::Neq => Binary::Neq,
+            TokenKind::Lt => Binary::Lt,
+            TokenKind::Lte => Binary::Lte,
+            TokenKind::Gt => Binary::Gt,
+            TokenKind::Gte => Binary::Gte,
+            TokenKind::And => Binary::And,
+            TokenKind::Or => Binary::Or,
+            TokenKind::Xor => Binary::Xor,
+            _ => unreachable!()
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Unary {
     Not,
 }
+
+impl From<TokenKind> for Unary {
+    fn from(kind: TokenKind) -> Self {
+        match kind {
+            TokenKind::Not => Unary::Not,
+            _ => unreachable!()
+        }
+    }
+}
+
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Label(pub String);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Variable(pub String);
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Target {
+    Variable(Variable),
+    Register(Register),
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Register(pub u32);
@@ -96,11 +128,11 @@ pub enum Value {
     /// value
     Decimal(f64),
 
-    /// label
-    Variable(Variable),
+    /// target
+    Target(Target),
 
-    /// label
-    Label(Label),
+    /// -
+    Null,
 }
 
 #[derive(Debug, Clone)]

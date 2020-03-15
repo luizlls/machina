@@ -77,8 +77,11 @@ impl<'a> Parser<'a> {
         })
     }
 
-    fn parse_final_function(&mut self, function: BasicFunction) -> ParserResult<FinalFunction> {
+    pub fn parse_final_function(&mut self, function: BasicFunction) -> ParserResult<FinalFunction> {
         self.tokens = VecDeque::from(function.tokens);
+
+        self.next()?; // curr
+        self.next()?; // peek
 
         let args = if self.curr_is(TokenKind::LParen) {
             self.parse_args()?
@@ -96,18 +99,135 @@ impl<'a> Parser<'a> {
         })
     }
 
+    fn parse_instruction(&mut self) -> ParserResult<Instruction> {
+        match self.curr_kind() {
+            TokenKind::Exec => {
+                self.eat(TokenKind::Exec)?;
+                let target = Target::Variable(self.parse_variable()?);
+                Ok(Instruction::Exec(target))
+            }
+            TokenKind::If => {
+                self.eat(TokenKind::If)?;
+                let test = self.parse_value()?;
+                let then = self.parse_label()?;
+                self.eat(TokenKind::Semicolon)?;
+                let else_ = self.parse_label()?;
+                Ok(Instruction::If(test, then, else_))
+            }
+            TokenKind::Jmp => {
+                self.eat(TokenKind::Jmp)?;
+                let dest = self.parse_label()?;
+                Ok(Instruction::Jmp(dest))
+            }
+            TokenKind::JmpT => {
+                self.eat(TokenKind::JmpT)?;
+                let test = self.parse_value()?;
+                let dest = self.parse_label()?;
+                Ok(Instruction::JmpT(test, dest))
+            }
+            TokenKind::JmpF => {
+                self.eat(TokenKind::JmpF)?;
+                let test = self.parse_value()?;
+                let dest = self.parse_label()?;
+                Ok(Instruction::JmpT(test, dest))
+            }
+            TokenKind::Out => {
+                self.eat(TokenKind::Out)?;
+                let value = self.parse_value()?;
+                Ok(Instruction::Output(value))
+            }
+            TokenKind::Variable => {
+                let target = Target::Variable(self.parse_variable()?);
+                let expr   = self.parse_expression()?;
+                Ok(Instruction::Assignment(target, expr))
+            }
+            _ => {
+                Err(self.unexpected(&[
+                    TokenKind::Exec,
+                    TokenKind::If,
+                    TokenKind::Jmp,
+                    TokenKind::JmpT,
+                    TokenKind::JmpF,
+                    TokenKind::Out,
+                    TokenKind::Variable,
+                ]))
+            }
+        }
+    }
+
+    fn parse_expression(&mut self) -> ParserResult<Expression> {
+        match self.curr_kind() {
+            TokenKind::String
+          | TokenKind::Integer
+          | TokenKind::Decimal
+          | TokenKind::Variable
+          | TokenKind::Null => {
+                Ok(Expression::Value(self.parse_value()?))
+            }
+            TokenKind::In => {
+                self.eat(TokenKind::In)?;
+                Ok(Expression::Input)
+            }
+            TokenKind::Call => {
+                self.eat(TokenKind::Call)?;
+                let func = self.parse_label()?;
+                let args = self.parse_seq_of(TokenKind::Comma, Self::parse_value)?;
+                Ok(Expression::Call(func, args))
+            }
+            TokenKind::Case => {
+                self.eat(TokenKind::Case)?;
+                let cases = self.parse_seq_of(TokenKind::Semicolon, |this| {
+                    let test   = this.parse_value()?;
+                    let target = this.parse_label()?;
+                    Ok((test, target))
+                })?;
+                Ok(Expression::Case(cases))
+            }
+              TokenKind::Add
+            | TokenKind::Sub
+            | TokenKind::Mul
+            | TokenKind::Div
+            | TokenKind::Mod
+            | TokenKind::Eq
+            | TokenKind::Neq
+            | TokenKind::Lt
+            | TokenKind::Lte
+            | TokenKind::Gt
+            | TokenKind::Gte
+            | TokenKind::And
+            | TokenKind::Or
+            | TokenKind::Xor => {
+                self.eat(self.curr_kind())?;
+                let lhs = self.parse_value()?;
+                let rhs = self.parse_value()?;
+                Ok(Expression::Binary(Binary::from(self.curr_kind()), lhs, rhs))
+            }
+            TokenKind::Not => {
+                self.eat(self.curr_kind())?;
+                let rhs = self.parse_value()?;
+                Ok(Expression::Unary(Unary::from(self.curr_kind()), rhs))
+            }
+            _ => {
+                Err(self.unexpected(&[]))
+            }
+        }
+    }
+
     fn parse_args(&mut self) -> ParserResult<Vec<Variable>> {
         self.eat(TokenKind::LParen)?;
-        let args = self.parse_seq_of(TokenKind::Semicolon, |this| {
-            match this.curr.clone() {
-                Some(Token { kind: TokenKind::Variable, value: Some(variable), line }) => {
-                    Ok(Variable(variable))
-                }
-                _ => Err(this.unexpected(&[TokenKind::Variable]))
-            }
-        })?;
+        let args = self.parse_seq_of(TokenKind::Comma, Self::parse_variable)?;
         self.eat(TokenKind::RParen)?;
         Ok(args)
+    }
+
+    fn parse_variable(&mut self) -> ParserResult<Variable> {
+        match self.curr.clone() {
+            Some(Token { kind: TokenKind::Variable, value: Some(variable), line }) => {
+                let _ = self.next()?;
+                Ok(Variable(variable))
+            }
+            _ => Err(self.unexpected(&[TokenKind::Variable]))
+        }
     }
 
     fn parse_label(&mut self) -> ParserResult<Label> {
@@ -120,8 +240,43 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_value(&mut self) -> ParserResult<Value> {
+        match self.curr.clone() {
+            Some(Token { kind: TokenKind::String, value: Some(s), .. }) => {
+                self.next()?;
+                Ok(Value::String(s))
+            }
+            Some(Token { kind: TokenKind::Integer, value: Some(i), .. }) => {
+                self.next()?;
+                let value = i.parse::<i64>().unwrap();
+                Ok(Value::Integer(value))
+            }
+            Some(Token { kind: TokenKind::Decimal, value: Some(d), .. }) => {
+                self.next()?;
+                let value = d.parse::<f64>().unwrap();
+                Ok(Value::Decimal(value))
+            }
+            Some(Token { kind: TokenKind::Null, .. }) => {
+                self.next()?;
+                Ok(Value::Null)
+            }
+            Some(Token { kind: TokenKind::Variable, value: Some(variable), .. }) => {
+                let _ = self.next()?;
+                let target = Target::Variable(Variable(variable));
+                Ok(Value::Target(target))
+            }
+            _ => Err(self.unexpected(&[
+                TokenKind::String,
+                TokenKind::Integer,
+                TokenKind::Decimal,
+                TokenKind::Variable,
+                TokenKind::Null,
+            ])),
+        }
+    }
+
     fn parse_seq_of<T, F>(&mut self, sep: TokenKind, mut f: F) -> ParserResult<Vec<T>>
-    where F: FnMut(&mut Self) -> ParserResult<T> {
+    where F: FnMut(&mut Self) -> ParserResult<T>, T: std::fmt::Debug {
         let mut result = vec![];
 
         loop {

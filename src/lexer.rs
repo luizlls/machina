@@ -11,6 +11,7 @@ pub enum TokenKind {
     RBrace,      // }
     LBracket,    // [
     RBracket,    // ]
+    Comma,       // ;
     Semicolon,   // ;
     Colon,       // :
     Equals,      // =
@@ -168,6 +169,9 @@ where
                 }
                 Some(':') => {
                     self.make_token(TokenKind::Colon)
+                }
+                Some(',') => {
+                    self.make_token(TokenKind::Comma)
                 }
                 Some(';') => {
                     self.make_token(TokenKind::Semicolon)
@@ -333,7 +337,7 @@ where
                             raw.push(chr);
                         }
                         None => {
-                            return Err(MachinaError { 
+                            return Err(MachinaError {
                                 kind: ErrorKind::InvalidEscapeCharacter,
                                 line: self.line
                             });
@@ -348,7 +352,7 @@ where
                     }
                 }
                 None => {
-                    return Err(MachinaError { 
+                    return Err(MachinaError {
                         kind: ErrorKind::UnterminatedString,
                         line: self.line
                     });
@@ -396,6 +400,7 @@ impl fmt::Display for TokenKind {
             TokenKind::RBrace    => write!(f, "}}"),
             TokenKind::LBracket  => write!(f, "["),
             TokenKind::RBracket  => write!(f, "]"),
+            TokenKind::Comma     => write!(f, ","),
             TokenKind::Semicolon => write!(f, ";"),
             TokenKind::Colon     => write!(f, ":"),
             TokenKind::Equals    => write!(f, "="),
