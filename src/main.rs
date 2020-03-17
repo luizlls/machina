@@ -3,9 +3,9 @@ mod error;
 mod lexer;
 mod parser;
 mod value;
+mod machina;
 
 use crate::parser::{Parser};
-use crate::ast::{Function};
 use std::fs;
 
 fn main() {
@@ -29,7 +29,7 @@ fn exec(source: String) {
     match parsed {
         Ok(module) => {
             for (name, function) in module.functions {
-                println!("function {} - {:#?}", name.0, function);
+                println!("function {} - {:#?}", name, function);
             }
         }
         Err(errors) => {

@@ -4,21 +4,21 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Instruction {
     /// target, expr
-    Assignment(Target, Expression),
+    Assignment(Variable, Expression),
+
+    /// possibilities (test, dest)
+    Switch(Vec<(Value, Label)>),
 
     /// test, then, else
     If(Value, Label, Label),
 
-    /// possibilities (test, result)
-    Switch(Vec<(Value, Label)>),
-
-    /// destination
+    /// dest
     Jmp(Label),
 
-    /// test, destination
+    /// test, dest
     JmpT(Value, Label),
 
-    /// test, destination
+    /// test, dest
     JmpF(Value, Label),
 
     /// func, arguments
@@ -58,7 +58,7 @@ pub enum Binary {
     Div,
     Mod,
     Eq,
-    Neq,
+    Ne,
     Lt,
     Lte,
     Gt,
@@ -76,14 +76,14 @@ impl From<TokenKind> for Binary {
             TokenKind::Mul => Binary::Mul,
             TokenKind::Div => Binary::Div,
             TokenKind::Mod => Binary::Mod,
-            TokenKind::Eq => Binary::Eq,
-            TokenKind::Neq => Binary::Neq,
-            TokenKind::Lt => Binary::Lt,
+            TokenKind::Eq  => Binary::Eq,
+            TokenKind::Ne  => Binary::Ne,
+            TokenKind::Lt  => Binary::Lt,
             TokenKind::Lte => Binary::Lte,
-            TokenKind::Gt => Binary::Gt,
+            TokenKind::Gt  => Binary::Gt,
             TokenKind::Gte => Binary::Gte,
             TokenKind::And => Binary::And,
-            TokenKind::Or => Binary::Or,
+            TokenKind::Or  => Binary::Or,
             TokenKind::Xor => Binary::Xor,
             _ => unreachable!()
         }
@@ -104,21 +104,11 @@ impl From<TokenKind> for Unary {
     }
 }
 
-
-#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Label(pub String);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Variable(pub String);
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Target {
-    Variable(Variable),
-    Register(Register),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Register(pub u32);
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
@@ -131,8 +121,8 @@ pub enum Value {
     /// value
     Decimal(f64),
 
-    /// target
-    Target(Target),
+    /// variable
+    Variable(Variable),
 
     /// -
     Null,
@@ -153,10 +143,9 @@ pub struct Block {
     pub instructions: Vec<Instruction>,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct Module {
-    pub functions: HashMap<Label, Function>
+    pub functions: HashMap<String, Function>
 }
 
 impl Module {

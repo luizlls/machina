@@ -2,6 +2,8 @@ use crate::lexer::{Lexer, Token, TokenKind};
 use crate::error::{MachinaError, ErrorKind};
 use crate::ast::*;
 
+pub const ENTRYPOINT_BLOCK: &'static str = "<ENTRYPOINT>";
+
 type ParserResult<T> = Result<T, MachinaError>;
 
 #[derive(Debug, Clone)]
@@ -30,7 +32,7 @@ impl<'a> Parser<'a> {
         while self.curr.is_some() {
             match self.parse_function() {
                 Ok(function) => {
-                    module.functions.insert(function.name.clone(), function);
+                    module.functions.insert(function.name.0.clone(), function);
                 }
                 Err(err) => {
                     errors.push(err);
@@ -71,8 +73,8 @@ impl<'a> Parser<'a> {
         let mut blocks = vec![];
 
         blocks.push(Block {
-            line:  line + 1,
-            label: name.clone(),
+            label: Label(String::from(ENTRYPOINT_BLOCK)),
+            line: line + 1,
             instructions,
         });
 
@@ -96,10 +98,10 @@ impl<'a> Parser<'a> {
     fn parse_instruction(&mut self) -> ParserResult<Instruction> {
         match self.curr_kind() {
             TokenKind::Variable => {
-                let target = Target::Variable(self.parse_variable()?);
+                let var = self.parse_variable()?;
                 self.eat(TokenKind::Equals)?;
-                let expr   = self.parse_expression()?;
-                Ok(Instruction::Assignment(target, expr))
+                let expr = self.parse_expression()?;
+                Ok(Instruction::Assignment(var, expr))
             }
             TokenKind::Jmp => {
                 self.eat(TokenKind::Jmp)?;
@@ -128,17 +130,17 @@ impl<'a> Parser<'a> {
             }
             TokenKind::Switch => {
                 self.eat(TokenKind::Switch)?;
-                let cases = self.parse_seq_of(TokenKind::Semicolon, |this| {
-                    let test   = this.parse_value()?;
-                    let target = this.parse_label()?;
-                    Ok((test, target))
+                let cases = self.parse_seq_with(TokenKind::Semicolon, |this| {
+                    let test = this.parse_value()?;
+                    let then = this.parse_label()?;
+                    Ok((test, then))
                 })?;
                 Ok(Instruction::Switch(cases))
             }
             TokenKind::Call => {
                 self.eat(TokenKind::Call)?;
                 let func = self.parse_label()?;
-                let args = self.parse_seq_of(TokenKind::Comma, Self::parse_value)?;
+                let args = self.parse_seq_with(TokenKind::Comma, Self::parse_value)?;
                 Ok(Instruction::Call(func, args))
             }
             TokenKind::Ret => {
@@ -186,7 +188,7 @@ impl<'a> Parser<'a> {
             TokenKind::Call => {
                 self.eat(TokenKind::Call)?;
                 let func = self.parse_label()?;
-                let args = self.parse_seq_of(TokenKind::Comma, Self::parse_value)?;
+                let args = self.parse_seq_with(TokenKind::Comma, Self::parse_value)?;
                 Ok(Expression::Call(func, args))
             }
               TokenKind::Add
@@ -195,7 +197,7 @@ impl<'a> Parser<'a> {
             | TokenKind::Div
             | TokenKind::Mod
             | TokenKind::Eq
-            | TokenKind::Neq
+            | TokenKind::Ne
             | TokenKind::Lt
             | TokenKind::Lte
             | TokenKind::Gt
@@ -248,7 +250,7 @@ impl<'a> Parser<'a> {
 
     fn parse_args(&mut self) -> ParserResult<Vec<Variable>> {
         self.eat(TokenKind::LParen)?;
-        let args = self.parse_seq_of(TokenKind::Comma, Self::parse_variable)?;
+        let args = self.parse_seq_with(TokenKind::Comma, Self::parse_variable)?;
         self.eat(TokenKind::RParen)?;
         Ok(args)
     }
@@ -295,7 +297,7 @@ impl<'a> Parser<'a> {
             }
             Some(Token { kind: TokenKind::Variable, value: Some(variable), .. }) => {
                 self.next()?;
-                Ok(Value::Target(Target::Variable(Variable(variable))))
+                Ok(Value::Variable(Variable(variable)))
             }
             _ => Err(self.unexpected(&[
                 TokenKind::String,
@@ -307,8 +309,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_seq_of<T, F>(&mut self, sep: TokenKind, mut f: F) -> ParserResult<Vec<T>>
-    where F: FnMut(&mut Self) -> ParserResult<T>, T: std::fmt::Debug {
+    fn parse_seq_with<T, F>(&mut self, sep: TokenKind, mut f: F)
+      -> ParserResult<Vec<T>>
+      where F: FnMut(&mut Self) -> ParserResult<T> {
         let mut result = vec![];
 
         loop {
