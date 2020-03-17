@@ -4,7 +4,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, PartialEq)]
 pub enum Instruction {
     /// target, expr
-    Assignment(Variable, Expression),
+    Assign(Variable, Expression),
 
     /// possibilities (test, dest)
     Switch(Vec<(Value, Label)>),
@@ -104,7 +104,7 @@ impl From<TokenKind> for Unary {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Label(pub String);
 
 #[derive(Debug, Clone, PartialEq)]

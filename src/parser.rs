@@ -101,7 +101,7 @@ impl<'a> Parser<'a> {
                 let var = self.parse_variable()?;
                 self.eat(TokenKind::Equals)?;
                 let expr = self.parse_expression()?;
-                Ok(Instruction::Assignment(var, expr))
+                Ok(Instruction::Assign(var, expr))
             }
             TokenKind::Jmp => {
                 self.eat(TokenKind::Jmp)?;
@@ -182,8 +182,7 @@ impl<'a> Parser<'a> {
                 Ok(Expression::Value(self.parse_value()?))
             }
             TokenKind::In => {
-                self.eat(TokenKind::In)?;
-                Ok(Expression::Input)
+                self.eat(TokenKind::In)?; Ok(Expression::Input)
             }
             TokenKind::Call => {
                 self.eat(TokenKind::Call)?;
