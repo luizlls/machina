@@ -1,18 +1,27 @@
-define main:
-  $fib = call fib 35
-  out $fib
-end
+main:
+  const     35
+  call      fib
+  output
 
-define fib($n):
-  $a = lt $n 2
-  jmpt $a L0
-  $1 = sub $n 1
-  $1 = call fib $1
-  $2 = sub $n 2
-  $2 = call fib $2
-  $3 = add $1 $2
-  $r = call fib $3
-  ret $r
-L0:
-  ret $n
-end
+fib($n):
+  load      $n
+  const     2
+  lt
+  jumpt     .L0
+
+  load      $n
+  const     1
+  sub
+  call      fib
+
+  load      $n
+  const     2
+  sub
+  call      fib
+
+  add
+  call      fib
+  return
+.L0:
+  load      $n
+  return

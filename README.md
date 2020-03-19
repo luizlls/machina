@@ -1,40 +1,37 @@
 ﻿# Machina
 
-A "high level" virtual machine
+A stack virtual machine
 
 
 # Example
 
 ```
-# Fizz Buzz
+# Fibonacci
+main:
+  const     35
+  call      fib
+  output
 
-define main:
-  $i = 0
-  jmp LOOP
-LOOP:
-  call fizzbuzz $i
-  $i = add $i 1
-  $l = lte $i 100
-  jmpt $l LOOP
-end
+fib($n):
+  load      $n
+  const     2
+  lt
+  jumpt     .L0
 
-define fizzbuzz($n):
-  $a = mod $n 3
-  $b = mod $n 5
-  $az = eq $a 0
-  $bz = eq $b 0
-  $both = and $az $bz
-  $none = eq $both 0
-  $block = case $both L0; $az L1; $bz L2; $none L3
-  exec $block
-L0:
-  out "FizzBuzz\n"
-L1:
-  out "Fizz\n"
-L2:
-  out "Buzz\n"
-L3:
-  out $n
-  out "\n"
-end
+  load      $n
+  const     1
+  sub
+  call      fib
+
+  load      $n
+  const     2
+  sub
+  call      fib
+
+  add
+  call      fib
+  return
+.L0:
+  load      $n
+  return
 ```

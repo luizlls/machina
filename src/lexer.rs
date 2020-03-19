@@ -5,30 +5,27 @@ use std::fmt;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
     // symbols
-    LParen,      // (
-    RParen,      // )
-    LBrace,      // {
-    RBrace,      // }
-    LBracket,    // [
-    RBracket,    // ]
-    Comma,       // ;
-    Semicolon,   // ;
-    Colon,       // :
-    Equals,      // =
+    LParen,   // (
+    RParen,   // )
+    LBrace,   // {
+    RBrace,   // }
+    LBracket, // [
+    RBracket, // ]
+    Comma,    // ;
+    Semi,     // ;
+    Colon,    // :
+    Equals,   // =
 
     // instructions
-    Define,
-    End,
-    Jmp,
-    JmpT,
-    JmpF,
-    If,
-    Switch,
-    Out,
-    Ret,
-
-    // expressions
-    In,
+    Jump,
+    JumpT,
+    JumpF,
+    Load,
+    Store,
+    Const,
+    Input,
+    Output,
+    Return,
     Call,
     Add,
     Sub,
@@ -53,8 +50,10 @@ pub enum TokenKind {
     Decimal,
     Variable,
     Label,
+    Identifier,
 
     // other
+    Instruction,
     EOF
 }
 
@@ -68,17 +67,16 @@ pub struct Token {
 
 fn get_keyword(key: &str) -> Option<TokenKind> {
     match key {
-        "define" => Some(TokenKind::Define),
-        "end"    => Some(TokenKind::End),
-        "if"     => Some(TokenKind::If),
-        "jmp"    => Some(TokenKind::Jmp),
-        "jmpt"   => Some(TokenKind::JmpT),
-        "jmpf"   => Some(TokenKind::JmpF),
-        "out"    => Some(TokenKind::Out),
-        "in"     => Some(TokenKind::In),
-        "ret"    => Some(TokenKind::Ret),
+        "jump"   => Some(TokenKind::Jump),
+        "jumpt"  => Some(TokenKind::JumpT),
+        "jumpf"  => Some(TokenKind::JumpF),
+        "const"  => Some(TokenKind::Const),
+        "load"   => Some(TokenKind::Load),
+        "store"  => Some(TokenKind::Store),
+        "input"  => Some(TokenKind::Input),
+        "output" => Some(TokenKind::Output),
+        "return" => Some(TokenKind::Return),
         "call"   => Some(TokenKind::Call),
-        "switch" => Some(TokenKind::Switch),
         "add"    => Some(TokenKind::Add),
         "sub"    => Some(TokenKind::Sub),
         "mul"    => Some(TokenKind::Mul),
@@ -129,13 +127,16 @@ where
     fn next_token(&mut self) -> Option<LexerResult> {
         loop {
             let token = match self.curr {
+                Some('$') => {
+                    self.variable()
+                }
+                Some('.') => {
+                    self.label()
+                }
                 Some('a'..='z')
               | Some('A'..='Z')
               | Some('_') => {
                     self.identifier()
-                }
-                Some('$') => {
-                    self.variable()
                 }
                 Some('0'..='9') => {
                     self.number(false)
@@ -174,7 +175,7 @@ where
                     self.make_token(TokenKind::Comma)
                 }
                 Some(';') => {
-                    self.make_token(TokenKind::Semicolon)
+                    self.make_token(TokenKind::Semi)
                 }
                 Some('(') => {
                     self.make_token(TokenKind::LParen)
@@ -252,12 +253,23 @@ where
             }
             None => {
                 Ok(Token {
-                    kind: TokenKind::Label,
+                    kind: TokenKind::Identifier,
                     value: Some(raw),
                     line: self.line,
                 })
             }
         }
+    }
+
+    fn label(&mut self) -> LexerResult {
+        self.next_char();
+        let raw = self.word(".".into());
+
+        Ok(Token {
+            kind: TokenKind::Label,
+            value: Some(raw),
+            line: self.line,
+        })
     }
 
     fn variable(&mut self) -> LexerResult {
@@ -394,49 +406,50 @@ where
 impl fmt::Display for TokenKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            TokenKind::LParen    => write!(f, "("),
-            TokenKind::RParen    => write!(f, ")"),
-            TokenKind::LBrace    => write!(f, "{{"),
-            TokenKind::RBrace    => write!(f, "}}"),
-            TokenKind::LBracket  => write!(f, "["),
-            TokenKind::RBracket  => write!(f, "]"),
-            TokenKind::Comma     => write!(f, ","),
-            TokenKind::Semicolon => write!(f, ";"),
-            TokenKind::Colon     => write!(f, ":"),
-            TokenKind::Equals    => write!(f, "="),
-            TokenKind::Define    => write!(f, "define"),
-            TokenKind::End       => write!(f, "end"),
-            TokenKind::If        => write!(f, "if"),
-            TokenKind::Jmp       => write!(f, "jmp"),
-            TokenKind::JmpT      => write!(f, "jmpt"),
-            TokenKind::JmpF      => write!(f, "jmpf"),
-            TokenKind::Out       => write!(f, "out"),
-            TokenKind::In        => write!(f, "in"),
-            TokenKind::Ret       => write!(f, "ret"),
-            TokenKind::Call      => write!(f, "call"),
-            TokenKind::Switch    => write!(f, "switch"),
-            TokenKind::Add       => write!(f, "add"),
-            TokenKind::Sub       => write!(f, "sub"),
-            TokenKind::Mul       => write!(f, "mul"),
-            TokenKind::Div       => write!(f, "div"),
-            TokenKind::Mod       => write!(f, "mod"),
-            TokenKind::Eq        => write!(f, "eq"),
-            TokenKind::Ne        => write!(f, "ne"),
-            TokenKind::Lt        => write!(f, "lt"),
-            TokenKind::Lte       => write!(f, "lte"),
-            TokenKind::Gt        => write!(f, "gt"),
-            TokenKind::Gte       => write!(f, "gte"),
-            TokenKind::And       => write!(f, "and"),
-            TokenKind::Or        => write!(f, "or"),
-            TokenKind::Xor       => write!(f, "xor"),
-            TokenKind::Not       => write!(f, "not"),
-            TokenKind::Null      => write!(f, "null"),
-            TokenKind::String    => write!(f, "string"),
-            TokenKind::Integer   => write!(f, "integer"),
-            TokenKind::Decimal   => write!(f, "decimal"),
-            TokenKind::Variable  => write!(f, "variable"),
-            TokenKind::Label     => write!(f, "label"),
-            TokenKind::EOF       => write!(f, "end of file"),
+            TokenKind::LParen   => write!(f, "("),
+            TokenKind::RParen   => write!(f, ")"),
+            TokenKind::LBrace   => write!(f, "{{"),
+            TokenKind::RBrace   => write!(f, "}}"),
+            TokenKind::LBracket => write!(f, "["),
+            TokenKind::RBracket => write!(f, "]"),
+            TokenKind::Comma    => write!(f, ";"),
+            TokenKind::Semi     => write!(f, ";"),
+            TokenKind::Colon    => write!(f, ":"),
+            TokenKind::Equals   => write!(f, "="),
+            TokenKind::Jump     => write!(f, "jump"),
+            TokenKind::JumpT    => write!(f, "jumpt"),
+            TokenKind::JumpF    => write!(f, "jumpf"),
+            TokenKind::Load     => write!(f, "load"),
+            TokenKind::Store    => write!(f, "store"),
+            TokenKind::Const    => write!(f, "const"),
+            TokenKind::Input    => write!(f, "input"),
+            TokenKind::Output   => write!(f, "output"),
+            TokenKind::Return   => write!(f, "return"),
+            TokenKind::Call     => write!(f, "call"),
+            TokenKind::Add      => write!(f, "add"),
+            TokenKind::Sub      => write!(f, "sub"),
+            TokenKind::Mul      => write!(f, "mul"),
+            TokenKind::Div      => write!(f, "div"),
+            TokenKind::Mod      => write!(f, "mod"),
+            TokenKind::Eq       => write!(f, "eq"),
+            TokenKind::Ne       => write!(f, "ne"),
+            TokenKind::Lt       => write!(f, "lt"),
+            TokenKind::Lte      => write!(f, "lte"),
+            TokenKind::Gt       => write!(f, "gt"),
+            TokenKind::Gte      => write!(f, "gte"),
+            TokenKind::And      => write!(f, "and"),
+            TokenKind::Or       => write!(f, "or"),
+            TokenKind::Xor      => write!(f, "xor"),
+            TokenKind::Not      => write!(f, "not"),
+            TokenKind::Null     => write!(f, "null"),
+            TokenKind::String   => write!(f, "string"),
+            TokenKind::Integer  => write!(f, "integer"),
+            TokenKind::Decimal  => write!(f, "decimal"),
+            TokenKind::Variable => write!(f, "variable"),
+            TokenKind::Label    => write!(f, "label"),
+            TokenKind::Identifier  => write!(f, "identifier"),
+            TokenKind::Instruction => write!(f, "instruction"),
+            TokenKind::EOF => write!(f, "end of file")
         }
     }
 }

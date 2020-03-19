@@ -2,7 +2,7 @@ use crate::lexer::{Lexer, Token, TokenKind};
 use crate::error::{MachinaError, ErrorKind};
 use crate::ast::*;
 
-pub const ENTRYPOINT_BLOCK: &'static str = "<ENTRYPOINT>";
+use std::collections::HashMap;
 
 type ParserResult<T> = Result<T, MachinaError>;
 
@@ -32,7 +32,7 @@ impl<'a> Parser<'a> {
         while self.curr.is_some() {
             match self.parse_function() {
                 Ok(function) => {
-                    module.functions.insert(function.name.0.clone(), function);
+                    module.functions.insert(function.name.clone(), function);
                 }
                 Err(err) => {
                     errors.push(err);
@@ -49,10 +49,8 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_function(&mut self) -> ParserResult<Function> {
-        self.eat(TokenKind::Define)?;
-
         let line = self.line();
-        let name = self.parse_label()?;
+        let name = self.parse_identifier()?.0;
 
         let args = if self.curr_is(TokenKind::LParen) {
             self.parse_args()?
@@ -62,189 +60,66 @@ impl<'a> Parser<'a> {
 
         self.eat(TokenKind::Colon)?;
 
-        let mut instructions = vec![];
+        let mut pre_instructions = vec![];
 
-        while !self.is_block()
-           && !self.curr_is(TokenKind::EOF)
-           && !self.curr_is(TokenKind::End) {
-            instructions.push(self.parse_instruction()?);
-        }
+        let mut count = 0;
+        let mut blocks = HashMap::new();
 
-        let mut blocks = vec![];
+        while !self.is_function_definition()
+           && !self.curr_is(TokenKind::EOF) {
 
-        blocks.push(Block {
-            label: Label(String::from(ENTRYPOINT_BLOCK)),
-            line: line + 1,
-            instructions,
-        });
-
-        if self.is_block() {
-            while !self.curr_is(TokenKind::EOF)
-               && !self.curr_is(TokenKind::End)  {
-                blocks.push(self.parse_block()?);
+            if self.curr_is(TokenKind::Label) {
+                let label = self.parse_label()?;
+                self.eat(TokenKind::Colon)?;
+                blocks.insert(label, count);
             }
+            pre_instructions.push(self.parse_instruction()?);
+            count += 1;
         }
 
-        self.eat(TokenKind::End)?;
+        dbg!(pre_instructions);
+
+        dbg!(blocks);
+
+        let mut local_values = vec![];
+
+        let mut instructions = vec![];
 
         Ok(Function {
             name: name,
             line: line,
-            args,
-            blocks,
+            local_values,
+            instructions,
         })
     }
 
-    fn parse_instruction(&mut self) -> ParserResult<Instruction> {
-        match self.curr_kind() {
-            TokenKind::Variable => {
-                let var = self.parse_variable()?;
-                self.eat(TokenKind::Equals)?;
-                let expr = self.parse_expression()?;
-                Ok(Instruction::Assign(var, expr))
-            }
-            TokenKind::Jmp => {
-                self.eat(TokenKind::Jmp)?;
-                let dest = self.parse_label()?;
-                Ok(Instruction::Jmp(dest))
-            }
-            TokenKind::JmpT => {
-                self.eat(TokenKind::JmpT)?;
-                let test = self.parse_value()?;
-                let dest = self.parse_label()?;
-                Ok(Instruction::JmpT(test, dest))
-            }
-            TokenKind::JmpF => {
-                self.eat(TokenKind::JmpF)?;
-                let test = self.parse_value()?;
-                let dest = self.parse_label()?;
-                Ok(Instruction::JmpF(test, dest))
-            }
-            TokenKind::If => {
-                self.eat(TokenKind::If)?;
-                let test = self.parse_value()?;
-                let then = self.parse_label()?;
-                self.eat(TokenKind::Semicolon)?;
-                let else_ = self.parse_label()?;
-                Ok(Instruction::If(test, then, else_))
-            }
-            TokenKind::Switch => {
-                self.eat(TokenKind::Switch)?;
-                let cases = self.parse_seq_with(TokenKind::Semicolon, |this| {
-                    let test = this.parse_value()?;
-                    let then = this.parse_label()?;
-                    Ok((test, then))
-                })?;
-                Ok(Instruction::Switch(cases))
-            }
-            TokenKind::Call => {
-                self.eat(TokenKind::Call)?;
-                let func = self.parse_label()?;
-                let args = self.parse_seq_with(TokenKind::Comma, Self::parse_value)?;
-                Ok(Instruction::Call(func, args))
-            }
-            TokenKind::Ret => {
-                let initial_line = self.line();
-                self.eat(TokenKind::Ret)?;
-                let value = if self.line() == initial_line {
-                    Some(self.parse_value()?)
-                } else {
-                    None
-                };
-                Ok(Instruction::Return(value))
-            }
-            TokenKind::Out => {
-                self.eat(TokenKind::Out)?;
-                let value = self.parse_value()?;
-                Ok(Instruction::Output(value))
-            }
-            _ => {
-                Err(self.unexpected(&[
-                    TokenKind::Switch,
-                    TokenKind::If,
-                    TokenKind::Jmp,
-                    TokenKind::JmpT,
-                    TokenKind::JmpF,
-                    TokenKind::Out,
-                    TokenKind::Variable,
-                ]))
-            }
+    fn parse_instruction(&mut self) -> ParserResult<PreInstruction> {
+        let line = self.line();
+        let kind = InstructionKind::from_token(self.curr_kind());
+        if  kind.is_none() {
+            return Err(self.unexpected(&[TokenKind::Instruction]));
         }
+        self.next()?;
+        let kind = kind.unwrap();
+        let arg  = match kind {
+            InstructionKind::Const
+          | InstructionKind::Load
+          | InstructionKind::Store
+          | InstructionKind::Jump
+          | InstructionKind::JumpT
+          | InstructionKind::JumpF
+          | InstructionKind::Call => {
+            Some(self.parse_value()?)
+          }
+          _ => None
+        };
+        Ok(PreInstruction { kind, arg, line })
     }
 
-    fn parse_expression(&mut self) -> ParserResult<Expression> {
-        match self.curr_kind() {
-            TokenKind::String
-          | TokenKind::Integer
-          | TokenKind::Decimal
-          | TokenKind::Variable
-          | TokenKind::Null => {
-                Ok(Expression::Value(self.parse_value()?))
-            }
-            TokenKind::In => {
-                self.eat(TokenKind::In)?; Ok(Expression::Input)
-            }
-            TokenKind::Call => {
-                self.eat(TokenKind::Call)?;
-                let func = self.parse_label()?;
-                let args = self.parse_seq_with(TokenKind::Comma, Self::parse_value)?;
-                Ok(Expression::Call(func, args))
-            }
-              TokenKind::Add
-            | TokenKind::Sub
-            | TokenKind::Mul
-            | TokenKind::Div
-            | TokenKind::Mod
-            | TokenKind::Eq
-            | TokenKind::Ne
-            | TokenKind::Lt
-            | TokenKind::Lte
-            | TokenKind::Gt
-            | TokenKind::Gte
-            | TokenKind::And
-            | TokenKind::Or
-            | TokenKind::Xor => {
-                let operator = Binary::from(self.curr_kind());
-                self.eat(self.curr_kind())?;
-                let lhs = self.parse_value()?;
-                let rhs = self.parse_value()?;
-                Ok(Expression::Binary(operator, lhs, rhs))
-            }
-            TokenKind::Not => {
-                let operator = Unary::from(self.curr_kind());
-                self.eat(self.curr_kind())?;
-                let rhs = self.parse_value()?;
-                Ok(Expression::Unary(operator, rhs))
-            }
-            _ => {
-                Err(self.unexpected(&[]))
-            }
-        }
-    }
-
-    fn parse_block(&mut self) -> ParserResult<Block> {
-        let label = self.parse_label()?;
-        let line  = self.line();
-
-        self.eat(TokenKind::Colon)?;
-
-        let mut instructions = vec![];
-
-        while !self.is_block()
-           && !self.curr_is(TokenKind::EOF)
-           && !self.curr_is(TokenKind::End) {
-            instructions.push(self.parse_instruction()?);
-        }
-
-        Ok(Block {
-            label,
-            line,
-            instructions
-        })
-    }
-
-    fn is_block(&self) -> bool {
-        self.curr_is(TokenKind::Label) && self.peek_is(TokenKind::Colon)
+    fn is_function_definition(&self) -> bool {
+        self.curr_is(TokenKind::Identifier) 
+            && (self.peek_is(TokenKind::Colon)
+                || self.peek_is(TokenKind::LParen))
     }
 
     fn parse_args(&mut self) -> ParserResult<Vec<Variable>> {
@@ -264,13 +139,23 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn parse_identifier(&mut self) -> ParserResult<Identifier> {
+        match self.curr.clone() {
+            Some(Token { kind: TokenKind::Identifier, value: Some(ident), .. }) => {
+                self.next()?;
+                Ok(Identifier(ident))
+            }
+            _ => Err(self.unexpected(&[TokenKind::Identifier])),
+        }
+    }
+
     fn parse_label(&mut self) -> ParserResult<Label> {
         match self.curr.clone() {
             Some(Token { kind: TokenKind::Label, value: Some(label), .. }) => {
                 self.next()?;
                 Ok(Label(label))
             }
-            _ => Err(self.unexpected(&[TokenKind::String])),
+            _ => Err(self.unexpected(&[TokenKind::Label])),
         }
     }
 
@@ -294,6 +179,14 @@ impl<'a> Parser<'a> {
                 self.next()?;
                 Ok(Value::Null)
             }
+            Some(Token { kind: TokenKind::Identifier, value: Some(identifier), .. }) => {
+                self.next()?;
+                Ok(Value::Identifier(Identifier(identifier)))
+            }
+            Some(Token { kind: TokenKind::Label, value: Some(label), .. }) => {
+                self.next()?;
+                Ok(Value::Label(Label(label)))
+            }
             Some(Token { kind: TokenKind::Variable, value: Some(variable), .. }) => {
                 self.next()?;
                 Ok(Value::Variable(Variable(variable)))
@@ -302,8 +195,10 @@ impl<'a> Parser<'a> {
                 TokenKind::String,
                 TokenKind::Integer,
                 TokenKind::Decimal,
-                TokenKind::Variable,
                 TokenKind::Null,
+                TokenKind::Identifier,
+                TokenKind::Label,
+                TokenKind::Variable,
             ])),
         }
     }
@@ -380,16 +275,17 @@ impl<'a> Parser<'a> {
     }
 
     fn recover(&mut self, errors: &mut Vec<MachinaError>) {
-        while !self.curr_is(TokenKind::EOF)
-           && !self.curr_is(TokenKind::Define) {
+        while !self.is_function_definition()
+           && !self.curr_is(TokenKind::EOF) {
             if let Err(err) = self.next() { errors.push(err) }
         }
     }
 
     fn unexpected(&mut self, expected: &[TokenKind]) -> MachinaError {
-        let tokens = expected.iter().map(|x| format!("`{}`", x)).collect::<Vec<String>>();
+        let tokens = expected.iter().map(|x| format!("`{}`", x)).collect();
+        let found  = format!("`{}`", self.curr_kind());
         MachinaError {
-            kind: ErrorKind::UnexpectedToken(tokens, format!("`{}`", self.curr_kind())),
+            kind: ErrorKind::UnexpectedToken(tokens, found),
             line: self.line()
         }
     }

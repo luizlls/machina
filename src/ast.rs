@@ -1,57 +1,17 @@
-use crate::lexer::{TokenKind};
+use crate::object::ObjectValue;
+use crate::lexer::TokenKind;
+
 use std::collections::HashMap;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum Instruction {
-    /// target, expr
-    Assign(Variable, Expression),
-
-    /// possibilities (test, dest)
-    Switch(Vec<(Value, Label)>),
-
-    /// test, then, else
-    If(Value, Label, Label),
-
-    /// dest
-    Jmp(Label),
-
-    /// test, dest
-    JmpT(Value, Label),
-
-    /// test, dest
-    JmpF(Value, Label),
-
-    /// func, arguments
-    Call(Label, Vec<Value>),
-
-    /// value
-    Output(Value),
-
-    /// value
-    Return(Option<Value>),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Expression {
-
-    /// operation, lhs, rhs
-    Binary(Binary, Value, Value),
-
-    /// operation, value
-    Unary(Unary, Value),
-
-    /// func, arguments
-    Call(Label, Vec<Value>),
-
-    /// value
-    Value(Value),
-
-    /// -
-    Input,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Binary {
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum InstructionKind {
+    Const,
+    Load,
+    Store,
+    Jump,
+    JumpT,
+    JumpF,
+    Call,
     Add,
     Sub,
     Mul,
@@ -66,43 +26,47 @@ pub enum Binary {
     And,
     Or,
     Xor,
-}
-
-impl From<TokenKind> for Binary {
-    fn from(kind: TokenKind) -> Self {
-        match kind {
-            TokenKind::Add => Binary::Add,
-            TokenKind::Sub => Binary::Sub,
-            TokenKind::Mul => Binary::Mul,
-            TokenKind::Div => Binary::Div,
-            TokenKind::Mod => Binary::Mod,
-            TokenKind::Eq  => Binary::Eq,
-            TokenKind::Ne  => Binary::Ne,
-            TokenKind::Lt  => Binary::Lt,
-            TokenKind::Lte => Binary::Lte,
-            TokenKind::Gt  => Binary::Gt,
-            TokenKind::Gte => Binary::Gte,
-            TokenKind::And => Binary::And,
-            TokenKind::Or  => Binary::Or,
-            TokenKind::Xor => Binary::Xor,
-            _ => unreachable!()
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Unary {
     Not,
+    Input,
+    Output,
+    Return,
 }
 
-impl From<TokenKind> for Unary {
-    fn from(kind: TokenKind) -> Self {
+impl InstructionKind {
+    pub fn from_token(kind: TokenKind) -> Option<Self> {
         match kind {
-            TokenKind::Not => Unary::Not,
-            _ => unreachable!()
+            TokenKind::Const  => Some(InstructionKind::Const),
+            TokenKind::Load   => Some(InstructionKind::Load),
+            TokenKind::Store  => Some(InstructionKind::Store),
+            TokenKind::Jump   => Some(InstructionKind::Jump),
+            TokenKind::JumpT  => Some(InstructionKind::JumpT),
+            TokenKind::JumpF  => Some(InstructionKind::JumpF),
+            TokenKind::Call   => Some(InstructionKind::Call),
+            TokenKind::Add    => Some(InstructionKind::Add),
+            TokenKind::Sub    => Some(InstructionKind::Sub),
+            TokenKind::Mul    => Some(InstructionKind::Mul),
+            TokenKind::Div    => Some(InstructionKind::Div),
+            TokenKind::Mod    => Some(InstructionKind::Mod),
+            TokenKind::Eq     => Some(InstructionKind::Eq),
+            TokenKind::Ne     => Some(InstructionKind::Ne),
+            TokenKind::Lt     => Some(InstructionKind::Lt),
+            TokenKind::Lte    => Some(InstructionKind::Lte),
+            TokenKind::Gt     => Some(InstructionKind::Gt),
+            TokenKind::Gte    => Some(InstructionKind::Gte),
+            TokenKind::And    => Some(InstructionKind::And),
+            TokenKind::Or     => Some(InstructionKind::Or),
+            TokenKind::Xor    => Some(InstructionKind::Xor),
+            TokenKind::Not    => Some(InstructionKind::Not),
+            TokenKind::Input  => Some(InstructionKind::Input),
+            TokenKind::Output => Some(InstructionKind::Output),
+            TokenKind::Return => Some(InstructionKind::Return),
+            _ => None
         }
     }
 }
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub struct Identifier(pub String);
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Label(pub String);
@@ -124,22 +88,35 @@ pub enum Value {
     /// variable
     Variable(Variable),
 
+    /// Label
+    Label(Label),
+
+    /// Identifier
+    Identifier(Identifier),
+
     /// -
     Null,
 }
 
 #[derive(Debug, Clone)]
-pub struct Function {
-    pub name: Label,
+pub struct PreInstruction {
+    pub kind: InstructionKind,
     pub line: u32,
-    pub args: Vec<Variable>,
-    pub blocks: Vec<Block>,
+    pub arg : Option<Value>,
 }
 
 #[derive(Debug, Clone)]
-pub struct Block {
-    pub label: Label,
+pub struct Instruction {
+    pub kind: InstructionKind,
+    pub arg : u16,
     pub line: u32,
+}
+
+#[derive(Debug, Clone)]
+pub struct Function {
+    pub name: String,
+    pub line: u32,
+    pub local_values: Vec<ObjectValue>,
     pub instructions: Vec<Instruction>,
 }
 

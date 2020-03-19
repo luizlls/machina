@@ -1,28 +1,68 @@
-define main:
-  $i = 0
-  jmp LOOP
-LOOP:
-  call fizzbuzz $i
-  $i = add $i 1
-  $l = lte $i 100
-  jmpt $l LOOP
-end
+main:
+  const     1
+  store     $i
+.L0:
+  load      $i
+  call      fizzbuzz
+  output
 
-define fizzbuzz($n):
-  $a = mod $n 3
-  $b = mod $n 5
-  $az = eq $a 0
-  $bz = eq $b 0
-  $both = and $az $bz
-  $none = eq $both 0
-  switch $both L0; $az L1; $bz L2; $none L3
-L0:
-  out "FizzBuzz\n"
-L1:
-  out "Fizz\n"
-L2:
-  out "Buzz\n"
-L3:
-  out $n
-  out "\n"
-end
+  load      $i
+  const     1
+  add
+  store     $i
+
+  load      $i
+  const     100
+  lte
+  jumpt     .L0
+
+  return
+
+fizzbuzz($n):
+  load      $n
+  const     3
+  mod
+  store     $a
+
+  load      $n
+  const     5
+  mod
+  store     $b
+
+  load      $a
+  const     0
+  eq
+  jumpf     L0
+
+  load      $b
+  const     0
+  eq
+  jumpf     .L0
+
+  const     "FizzBuzz\n"
+  return
+
+.L0:
+  load      $a
+  const     0
+  eq
+  jumpf     .L1
+
+  const     "Fizz\n"
+  return
+
+.L1:
+  load      $b
+  const     0
+  eq
+  jumpf     .L2
+
+  const     "Buzz\n"
+  return
+
+.L2:
+  load      $n
+  output
+  const     "\n"
+  output
+  return

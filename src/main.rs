@@ -3,7 +3,6 @@ mod error;
 mod lexer;
 mod parser;
 mod object;
-mod code;
 mod machina;
 
 use crate::parser::{Parser};
