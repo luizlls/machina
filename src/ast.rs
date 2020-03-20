@@ -27,6 +27,7 @@ pub enum InstructionKind {
     Or,
     Xor,
     Not,
+    Null,
     Input,
     Output,
     Return,
@@ -71,7 +72,7 @@ pub struct Identifier(pub String);
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Label(pub String);
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct Variable(pub String);
 
 #[derive(Debug, Clone, PartialEq)]
@@ -93,9 +94,6 @@ pub enum Value {
 
     /// Identifier
     Identifier(Identifier),
-
-    /// -
-    Null,
 }
 
 #[derive(Debug, Clone)]
@@ -108,7 +106,7 @@ pub struct PreInstruction {
 #[derive(Debug, Clone)]
 pub struct Instruction {
     pub kind: InstructionKind,
-    pub arg : u16,
+    pub arg : u32,
     pub line: u32,
 }
 
@@ -116,6 +114,7 @@ pub struct Instruction {
 pub struct Function {
     pub name: String,
     pub line: u32,
+    pub variables: u32,
     pub local_values: Vec<ObjectValue>,
     pub instructions: Vec<Instruction>,
 }

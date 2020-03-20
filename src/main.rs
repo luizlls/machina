@@ -29,7 +29,7 @@ fn exec(source: String) {
     match parsed {
         Ok(module) => {
             for (name, function) in module.functions {
-                println!("function {} - {:#?}", name, function);
+                println!("{:#?}", function);
             }
         }
         Err(errors) => {

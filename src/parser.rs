@@ -1,6 +1,7 @@
 use crate::lexer::{Lexer, Token, TokenKind};
 use crate::error::{MachinaError, ErrorKind};
 use crate::ast::*;
+use crate::object::ObjectValue;
 
 use std::collections::HashMap;
 
@@ -73,27 +74,36 @@ impl<'a> Parser<'a> {
                 self.eat(TokenKind::Colon)?;
                 blocks.insert(label, count);
             }
-            pre_instructions.push(self.parse_instruction()?);
+            pre_instructions.push(self.parse_pre_instruction()?);
             count += 1;
         }
 
-        dbg!(pre_instructions);
+        let mut values: HashMap<ObjectValue, usize> = HashMap::new();
+        let mut variables: HashMap<Variable, usize> = HashMap::new();
 
-        dbg!(blocks);
+        let instructions = pre_instructions
+            .into_iter()
+            .map(|i| Parser::convert_instruction(i, &mut values, &mut variables, &blocks))
+            .collect();
 
-        let mut local_values = vec![];
+        let mut local_values = vec![ObjectValue::Null; values.len()];
 
-        let mut instructions = vec![];
+        for (obj, idx) in values {
+            local_values[idx] = obj;
+        }
+
+        let variables = variables.len() as u32;
 
         Ok(Function {
-            name: name,
-            line: line,
+            name,
+            line,
+            variables,
             local_values,
             instructions,
         })
     }
 
-    fn parse_instruction(&mut self) -> ParserResult<PreInstruction> {
+    fn parse_pre_instruction(&mut self) -> ParserResult<PreInstruction> {
         let line = self.line();
         let kind = InstructionKind::from_token(self.curr_kind());
         if  kind.is_none() {
@@ -114,6 +124,44 @@ impl<'a> Parser<'a> {
           _ => None
         };
         Ok(PreInstruction { kind, arg, line })
+    }
+
+    fn convert_instruction(
+        instruction: PreInstruction,
+        values: &mut HashMap<ObjectValue, usize>,
+        variables: &mut HashMap<Variable, usize>,
+        blocks: &HashMap<Label, u32>) -> Instruction {
+        let arg = match instruction.arg {
+            Some(Value::String(s)) => {
+                let len = values.len();
+                *values.entry(ObjectValue::String(s)).or_insert(len) as u32
+            }
+            Some(Value::Integer(i)) => {
+                let len = values.len();
+                *values.entry(ObjectValue::Integer(i)).or_insert(len) as u32
+            }
+            Some(Value::Decimal(d)) => {
+                let len = values.len();
+                *values.entry(ObjectValue::Decimal(d)).or_insert(len) as u32
+            }
+            Some(Value::Variable(v)) => {
+                let len = variables.len();
+                *variables.entry(v).or_insert(len) as u32
+            }
+            Some(Value::Label(l)) => {
+                *blocks.get(&l).unwrap()
+            }
+            Some(Value::Identifier(i)) => {
+                let len = values.len();
+                *values.entry(ObjectValue::String(i.0)).or_insert(len) as u32
+            }
+            None => 0
+        };
+        Instruction {
+            kind: instruction.kind,
+            line: instruction.line,
+            arg,
+        }
     }
 
     fn is_function_definition(&self) -> bool {
@@ -175,10 +223,6 @@ impl<'a> Parser<'a> {
                 let value = d.parse::<f64>().unwrap();
                 Ok(Value::Decimal(value))
             }
-            Some(Token { kind: TokenKind::Null, .. }) => {
-                self.next()?;
-                Ok(Value::Null)
-            }
             Some(Token { kind: TokenKind::Identifier, value: Some(identifier), .. }) => {
                 self.next()?;
                 Ok(Value::Identifier(Identifier(identifier)))
@@ -195,7 +239,6 @@ impl<'a> Parser<'a> {
                 TokenKind::String,
                 TokenKind::Integer,
                 TokenKind::Decimal,
-                TokenKind::Null,
                 TokenKind::Identifier,
                 TokenKind::Label,
                 TokenKind::Variable,
