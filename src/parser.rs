@@ -81,24 +81,28 @@ impl<'a> Parser<'a> {
         let mut values: HashMap<ObjectValue, usize> = HashMap::new();
         let mut variables: HashMap<Variable, usize> = HashMap::new();
 
+        for (idx, arg) in args.into_iter().enumerate() {
+            variables.insert(arg, idx);
+        }
+
         let instructions = pre_instructions
             .into_iter()
             .map(|i| Parser::convert_instruction(i, &mut values, &mut variables, &blocks))
             .collect();
 
-        let mut local_values = vec![ObjectValue::Null; values.len()];
+        let mut constants = vec![ObjectValue::Null; values.len()];
 
         for (obj, idx) in values {
-            local_values[idx] = obj;
+            constants[idx] = obj;
         }
 
-        let variables = variables.len() as u32;
+        let variables = variables.len();
 
         Ok(Function {
             name,
             line,
             variables,
-            local_values,
+            constants,
             instructions,
         })
     }
@@ -130,30 +134,30 @@ impl<'a> Parser<'a> {
         instruction: PreInstruction,
         values: &mut HashMap<ObjectValue, usize>,
         variables: &mut HashMap<Variable, usize>,
-        blocks: &HashMap<Label, u32>) -> Instruction {
+        blocks: &HashMap<Label, usize>) -> Instruction {
         let arg = match instruction.arg {
             Some(Value::String(s)) => {
                 let len = values.len();
-                *values.entry(ObjectValue::String(s)).or_insert(len) as u32
+                *values.entry(ObjectValue::String(s)).or_insert(len)
             }
             Some(Value::Integer(i)) => {
                 let len = values.len();
-                *values.entry(ObjectValue::Integer(i)).or_insert(len) as u32
+                *values.entry(ObjectValue::Integer(i)).or_insert(len)
             }
             Some(Value::Decimal(d)) => {
                 let len = values.len();
-                *values.entry(ObjectValue::Decimal(d)).or_insert(len) as u32
+                *values.entry(ObjectValue::Decimal(d)).or_insert(len)
             }
             Some(Value::Variable(v)) => {
                 let len = variables.len();
-                *variables.entry(v).or_insert(len) as u32
+                *variables.entry(v).or_insert(len)
             }
             Some(Value::Label(l)) => {
                 *blocks.get(&l).unwrap()
             }
             Some(Value::Identifier(i)) => {
                 let len = values.len();
-                *values.entry(ObjectValue::String(i.0)).or_insert(len) as u32
+                *values.entry(ObjectValue::String(i.0)).or_insert(len)
             }
             None => 0
         };

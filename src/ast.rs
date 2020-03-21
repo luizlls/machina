@@ -106,16 +106,16 @@ pub struct PreInstruction {
 #[derive(Debug, Clone)]
 pub struct Instruction {
     pub kind: InstructionKind,
-    pub arg : u32,
     pub line: u32,
+    pub arg : usize,
 }
 
 #[derive(Debug, Clone)]
 pub struct Function {
     pub name: String,
     pub line: u32,
-    pub variables: u32,
-    pub local_values: Vec<ObjectValue>,
+    pub variables: usize,
+    pub constants: Vec<ObjectValue>,
     pub instructions: Vec<Instruction>,
 }
 
