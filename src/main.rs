@@ -6,6 +6,7 @@ mod object;
 mod machina;
 
 use crate::parser::{Parser};
+use crate::machina::Machina;
 use std::fs;
 
 fn main() {
@@ -25,12 +26,10 @@ fn file(file: String) {
 
 fn exec(source: String) {
     let mut parser = Parser::new(&source);
-    let parsed = parser.parse();
-    match parsed {
+    match parser.parse() {
         Ok(module) => {
-            for (name, function) in module.functions {
-                println!("{:#?}", function);
-            }
+            let mut machina = Machina::new(module);
+            machina.run();
         }
         Err(errors) => {
             for err in errors {

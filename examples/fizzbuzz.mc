@@ -19,6 +19,8 @@ main:
   return
 
 fizzbuzz($n):
+  store     $n
+
   load      $n
   const     3
   mod
@@ -32,14 +34,14 @@ fizzbuzz($n):
   load      $a
   const     0
   eq
-  jumpf     L0
+  jumpf     .L0
 
   load      $b
   const     0
   eq
   jumpf     .L0
 
-  const     "FizzBuzz\n"
+  const     "FizzBuzz"
   return
 
 .L0:
@@ -48,7 +50,7 @@ fizzbuzz($n):
   eq
   jumpf     .L1
 
-  const     "Fizz\n"
+  const     "Fizz"
   return
 
 .L1:
@@ -57,12 +59,9 @@ fizzbuzz($n):
   eq
   jumpf     .L2
 
-  const     "Buzz\n"
+  const     "Buzz"
   return
 
 .L2:
   load      $n
-  output
-  const     "\n"
-  output
   return

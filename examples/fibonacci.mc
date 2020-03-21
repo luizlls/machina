@@ -4,6 +4,8 @@ main:
   output
 
 fib($n):
+  store     $n
+
   load      $n
   const     2
   lt
@@ -20,7 +22,6 @@ fib($n):
   call      fib
 
   add
-  call      fib
   return
 .L0:
   load      $n

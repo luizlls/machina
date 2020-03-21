@@ -3,18 +3,29 @@ use crate::ast::*;
 
 const STACK_SIZE: usize = 64;
 
-macro_rules! pop_binary {
-    ($vm:expr, $func:ident) => {
-        let a = $vm.stack.pop().unwrap();
-        let b = $vm.stack.pop().unwrap();
-        $vm.stack.push(a.$func(b));
+macro_rules! binary {
+    ($stack:expr, $function:ident) => {
+        let rhs = $stack.pop().unwrap();
+        let lhs = $stack.pop().unwrap();
+        let result = lhs.$function(rhs);
+        $stack.push(result);
     };
 }
+
+macro_rules! unary {
+    ($stack:expr, $function:ident) => {
+        let rhs = $stack.pop().unwrap();
+        let result = rhs.$function();
+        $stack.push(result);
+    };
+}
+
+type Stack = Vec<ObjectValue>;
 
 #[derive(Debug, Clone)]
 pub struct Machina {
     module: Module,
-    stack: Vec<ObjectValue>,
+    stack: Stack,
 }
 
 impl Machina {
@@ -25,11 +36,13 @@ impl Machina {
         }
     }
 
-    pub fn run(&self) {
-
+    pub fn run(&mut self) {
+        Machina::call(&mut self.stack, &self.module, &"main".into());
     }
 
-    fn call(vm: &mut Machina, function: &Function) {
+    fn call(stack: &mut Stack, module: &Module, function_name: &String) {
+        let function = module.functions.get(function_name).unwrap();
+
         let mut variables = vec![ObjectValue::Null; function.variables];
         let mut ip = 0;
 
@@ -38,85 +51,85 @@ impl Machina {
             ip += 1;
             match instruction.kind {
                 InstructionKind::Const => {
-                    let value = function.constants[instruction.arg].clone();
-                    vm.stack.push(value);
+                    stack.push(function.constants[instruction.arg].clone());
                 }
                 InstructionKind::Load => {
-                    let value = variables[instruction.arg].clone();
-                    vm.stack.push(value);
+                    stack.push(variables[instruction.arg].clone());
                 }
                 InstructionKind::Store => {
-                    variables[instruction.arg] = vm.stack.pop().unwrap();
+                    variables[instruction.arg] = stack.pop().unwrap();
                 }
                 InstructionKind::Jump => {
                     ip = instruction.arg;
                 }
                 InstructionKind::JumpT => {
-                    if vm.stack.pop().unwrap().boolean() {
+                    if stack.pop().unwrap().boolean() {
                         ip = instruction.arg;
                     }
                 }
                 InstructionKind::JumpF => {
-                    if !vm.stack.pop().unwrap().boolean() {
+                    if !stack.pop().unwrap().boolean() {
                         ip = instruction.arg;
                     }
                 }
                 InstructionKind::Call => {
+                    if let ObjectValue::String(name) = &function.constants[instruction.arg] {
+                        Machina::call(stack, module, name)
+                    }
                 }
                 InstructionKind::Add => {
-                    pop_binary!(vm, add);
+                    binary!(stack, add);
                 }
                 InstructionKind::Sub => {
-                    pop_binary!(vm, sub);
+                    binary!(stack, sub);
                 }
                 InstructionKind::Mul => {
-                    pop_binary!(vm, mul);
+                    binary!(stack, mul);
                 }
                 InstructionKind::Div => {
-                    pop_binary!(vm, div);
+                    binary!(stack, div);
                 }
                 InstructionKind::Mod => {
-                    pop_binary!(vm, modulus);
+                    binary!(stack, modulus);
                 }
                 InstructionKind::Eq => {
-                    pop_binary!(vm, eq);
+                    binary!(stack, eq);
                 }
                 InstructionKind::Ne => {
-                    pop_binary!(vm, ne);
+                    binary!(stack, ne);
                 }
                 InstructionKind::Lt => {
-                    pop_binary!(vm, lt);
+                    binary!(stack, lt);
                 }
                 InstructionKind::Lte => {
-                    pop_binary!(vm, lte);
+                    binary!(stack, lte);
                 }
                 InstructionKind::Gt => {
-                    pop_binary!(vm, gt);
+                    binary!(stack, gt);
                 }
                 InstructionKind::Gte => {
-                    pop_binary!(vm, gte);
+                    binary!(stack, gte);
                 }
                 InstructionKind::And => {
-                    pop_binary!(vm, bit_and);
+                    binary!(stack, bit_and);
                 }
                 InstructionKind::Or => {
-                    pop_binary!(vm, bit_or);
+                    binary!(stack, bit_or);
                 }
                 InstructionKind::Xor => {
-                    pop_binary!(vm, bit_xor);
+                    binary!(stack, bit_xor);
                 }
                 InstructionKind::Not => {
-                    let value = vm.stack.pop().unwrap();
-                    vm.stack.push(value.bit_not());
+                    unary!(stack, bit_not);
                 }
                 InstructionKind::Null => {
-                    vm.stack.push(ObjectValue::Null);
+                    stack.push(ObjectValue::Null);
                 }
                 InstructionKind::Input => {
 
                 }
                 InstructionKind::Output => {
-                    println!("{}", vm.stack.pop().unwrap());
+                    println!("{}", stack.pop().unwrap());
                 }
                 InstructionKind::Return => {
                     return;
