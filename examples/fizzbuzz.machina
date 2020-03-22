@@ -1,7 +1,7 @@
 main:
   const     1
   store     $i
-.L0:
+L0:
   load      $i
   call      fizzbuzz
   output
@@ -14,11 +14,11 @@ main:
   load      $i
   const     100
   lte
-  jumpt     .L0
+  jumpt     L0
 
   return
 
-fizzbuzz($n):
+fizzbuzz:
   store     $n
 
   load      $n
@@ -26,42 +26,42 @@ fizzbuzz($n):
   mod
   store     $a
 
+  load      $a
+  const     0
+  eq
+  jumpf     L1
+  
   load      $n
   const     5
   mod
   store     $b
 
-  load      $a
-  const     0
-  eq
-  jumpf     .L0
-
   load      $b
   const     0
   eq
-  jumpf     .L0
+  jumpf     L1
 
   const     "FizzBuzz"
   return
 
-.L0:
+L1:
   load      $a
   const     0
   eq
-  jumpf     .L1
+  jumpf     L2
 
   const     "Fizz"
   return
 
-.L1:
+L2:
   load      $b
   const     0
   eq
-  jumpf     .L2
+  jumpf     L3
 
   const     "Buzz"
   return
 
-.L2:
+L3:
   load      $n
   return

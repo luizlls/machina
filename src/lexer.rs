@@ -50,7 +50,6 @@ pub enum TokenKind {
     Decimal,
     Variable,
     Label,
-    Identifier,
 
     // other
     Instruction,
@@ -129,9 +128,6 @@ where
             let token = match self.curr {
                 Some('$') => {
                     self.variable()
-                }
-                Some('.') => {
-                    self.label()
                 }
                 Some('a'..='z')
               | Some('A'..='Z')
@@ -253,23 +249,12 @@ where
             }
             None => {
                 Ok(Token {
-                    kind: TokenKind::Identifier,
+                    kind: TokenKind::Label,
                     value: Some(raw),
                     line: self.line,
                 })
             }
         }
-    }
-
-    fn label(&mut self) -> LexerResult {
-        self.next_char();
-        let raw = self.word(".".into());
-
-        Ok(Token {
-            kind: TokenKind::Label,
-            value: Some(raw),
-            line: self.line,
-        })
     }
 
     fn variable(&mut self) -> LexerResult {
@@ -447,7 +432,6 @@ impl fmt::Display for TokenKind {
             TokenKind::Decimal  => write!(f, "decimal"),
             TokenKind::Variable => write!(f, "variable"),
             TokenKind::Label    => write!(f, "label"),
-            TokenKind::Identifier  => write!(f, "identifier"),
             TokenKind::Instruction => write!(f, "instruction"),
             TokenKind::EOF => write!(f, "end of file")
         }

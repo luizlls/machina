@@ -25,11 +25,10 @@ fn file(file: String) {
 }
 
 fn exec(source: String) {
-    let mut parser = Parser::new(&source);
-    match parser.parse() {
+    let mut machina = Machina::new();
+    match Parser::new(&source).parse() {
         Ok(module) => {
-            let mut machina = Machina::new(module);
-            machina.run();
+            machina.run(module);
         }
         Err(errors) => {
             for err in errors {

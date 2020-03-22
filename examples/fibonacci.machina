@@ -2,14 +2,15 @@ main:
   const     35
   call      fib
   output
+  return
 
-fib($n):
+fib:
   store     $n
 
   load      $n
   const     2
   lt
-  jumpt     .L0
+  jumpt     L0
 
   load      $n
   const     1
@@ -23,6 +24,6 @@ fib($n):
 
   add
   return
-.L0:
+L0:
   load      $n
   return
