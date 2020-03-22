@@ -140,14 +140,6 @@ impl ObjectValue {
         }
     }
 
-    pub fn is(&self, kind: ObjectKind) -> bool {
-        match self {
-            ObjectValue::Null => kind == ObjectKind::Null,
-            ObjectValue::Decimal(_) => kind == ObjectKind::Decimal,
-            ObjectValue::Integer(_) => kind == ObjectKind::Integer,
-            ObjectValue::String (_) => kind == ObjectKind::String,
-        }
-    }
     pub fn name<'a>(&self) -> &'a str {
         match self {
             ObjectValue::Null => "null",

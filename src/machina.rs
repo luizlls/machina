@@ -7,132 +7,142 @@ macro_rules! binary {
     ($stack:expr, $function:ident) => {
         let rhs = $stack.pop().unwrap();
         let lhs = $stack.pop().unwrap();
-        let result = lhs.$function(rhs);
-        $stack.push(result);
+        $stack.push(lhs.$function(rhs));
     };
 }
 
 macro_rules! unary {
     ($stack:expr, $function:ident) => {
         let rhs = $stack.pop().unwrap();
-        let result = rhs.$function();
-        $stack.push(result);
+        $stack.push(rhs.$function());
     };
 }
 
 type Stack = Vec<ObjectValue>;
 
 #[derive(Debug, Clone)]
+struct Frame {
+    ret: usize,
+    locals: Vec<ObjectValue>
+}
+
+impl Frame {
+    fn new(size: usize, ret: usize) -> Frame {
+        Frame {
+            ret,
+            locals: vec![ObjectValue::Null; size],
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Machina {
-    module: Module,
     stack: Stack,
+    frames: Vec<Frame>,
 }
 
 impl Machina {
-    pub fn new(module: Module) -> Self {
+    pub fn new() -> Self {
         Machina {
-            module,
             stack: Vec::with_capacity(STACK_SIZE),
+            frames: Vec::with_capacity(1),
         }
     }
 
-    pub fn run(&mut self) {
-        Machina::call(&mut self.stack, &self.module, &"main".into());
-    }
-
-    fn call(stack: &mut Stack, module: &Module, function_name: &String) {
-        let function = module.functions.get(function_name).unwrap();
-
-        let mut variables = vec![ObjectValue::Null; function.variables];
+    pub fn run(&mut self, module: Module) {
         let mut ip = 0;
+        let mut fp = 0;
+        self.frames.push(Frame::new(module.variables, 0));
 
-        while ip < function.instructions.len() {
-            let instruction = &function.instructions[ip];
+        while self.frames.len() > 0 {
+            let instruction = &module.instructions[ip];
             ip += 1;
             match instruction.kind {
                 InstructionKind::Const => {
-                    stack.push(function.constants[instruction.arg].clone());
+                    self.stack.push(module.constants[instruction.arg].clone());
                 }
                 InstructionKind::Load => {
-                    stack.push(variables[instruction.arg].clone());
+                    self.stack.push(self.frames[fp].locals[instruction.arg].clone());
                 }
                 InstructionKind::Store => {
-                    variables[instruction.arg] = stack.pop().unwrap();
+                    self.frames[fp].locals[instruction.arg] = self.stack.pop().unwrap();
                 }
                 InstructionKind::Jump => {
                     ip = instruction.arg;
                 }
                 InstructionKind::JumpT => {
-                    if stack.pop().unwrap().boolean() {
+                    if self.stack.pop().unwrap().boolean() {
                         ip = instruction.arg;
                     }
                 }
                 InstructionKind::JumpF => {
-                    if !stack.pop().unwrap().boolean() {
+                    if !self.stack.pop().unwrap().boolean() {
                         ip = instruction.arg;
                     }
                 }
                 InstructionKind::Call => {
-                    if let ObjectValue::String(name) = &function.constants[instruction.arg] {
-                        Machina::call(stack, module, name)
-                    }
+                    self.frames.push(Frame::new(module.variables, ip));
+                    fp += 1;
+                    ip = instruction.arg;
                 }
                 InstructionKind::Add => {
-                    binary!(stack, add);
+                    binary!(self.stack, add);
                 }
                 InstructionKind::Sub => {
-                    binary!(stack, sub);
+                    binary!(self.stack, sub);
                 }
                 InstructionKind::Mul => {
-                    binary!(stack, mul);
+                    binary!(self.stack, mul);
                 }
                 InstructionKind::Div => {
-                    binary!(stack, div);
+                    binary!(self.stack, div);
                 }
                 InstructionKind::Mod => {
-                    binary!(stack, modulus);
+                    binary!(self.stack, modulus);
                 }
                 InstructionKind::Eq => {
-                    binary!(stack, eq);
+                    binary!(self.stack, eq);
                 }
                 InstructionKind::Ne => {
-                    binary!(stack, ne);
+                    binary!(self.stack, ne);
                 }
                 InstructionKind::Lt => {
-                    binary!(stack, lt);
+                    binary!(self.stack, lt);
                 }
                 InstructionKind::Lte => {
-                    binary!(stack, lte);
+                    binary!(self.stack, lte);
                 }
                 InstructionKind::Gt => {
-                    binary!(stack, gt);
+                    binary!(self.stack, gt);
                 }
                 InstructionKind::Gte => {
-                    binary!(stack, gte);
+                    binary!(self.stack, gte);
                 }
                 InstructionKind::And => {
-                    binary!(stack, bit_and);
+                    binary!(self.stack, bit_and);
                 }
                 InstructionKind::Or => {
-                    binary!(stack, bit_or);
+                    binary!(self.stack, bit_or);
                 }
                 InstructionKind::Xor => {
-                    binary!(stack, bit_xor);
+                    binary!(self.stack, bit_xor);
                 }
                 InstructionKind::Not => {
-                    unary!(stack, bit_not);
+                    unary!(self.stack, bit_not);
                 }
                 InstructionKind::Null => {
-                    stack.push(ObjectValue::Null);
+                    self.stack.push(ObjectValue::Null);
                 }
-                InstructionKind::Input => {
-
-                }
+                InstructionKind::Input => {}
                 InstructionKind::Output => {
-                    println!("{}", stack.pop().unwrap());
+                    println!("{}", self.stack.pop().unwrap());
                 }
                 InstructionKind::Return => {
-                    return;
+                    ip = self.frames[fp].ret;
+                    if fp >= 1 {
+                       fp -= 1;
+                    }
+                    self.frames.pop();
                 }
             }
         }

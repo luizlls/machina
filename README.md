@@ -1,6 +1,6 @@
 ﻿# Machina
 
-A stack virtual machine
+A low level, stack based, virtual machine
 
 
 # Example
@@ -29,7 +29,6 @@ fib($n):
   call      fib
 
   add
-  call      fib
   return
 .L0:
   load      $n

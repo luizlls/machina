@@ -24,16 +24,20 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse(&mut self) -> Result<Module, Vec<MachinaError>> {
-        let mut module = Module::new();
-        let mut errors = vec![];
-
         let _ = self.next(); // curr
         let _ = self.next(); // peek
+        self.parse_module()
+    }
+
+    fn parse_module(&mut self) -> Result<Module, Vec<MachinaError>> {
+        let mut errors = vec![];
+
+        let mut blocks = vec![];
 
         while self.curr.is_some() {
-            match self.parse_function() {
-                Ok(function) => {
-                    module.functions.insert(function.name.clone(), function);
+            match self.parse_block() {
+                Ok(block) => {
+                    blocks.push(block)
                 }
                 Err(err) => {
                     errors.push(err);
@@ -42,53 +46,26 @@ impl<'a> Parser<'a> {
             }
         }
 
-        if errors.is_empty() {
-            Ok(module)
-        } else {
-            Err(errors)
-        }
-    }
-
-    pub fn parse_function(&mut self) -> ParserResult<Function> {
-        let line = self.line();
-        let name = self.parse_identifier()?.0;
-
-        let args = if self.curr_is(TokenKind::LParen) {
-            self.parse_args()?
-        } else {
-            Vec::with_capacity(0)
-        };
-
-        self.eat(TokenKind::Colon)?;
-
-        let mut pre_instructions = vec![];
-
-        let mut count = 0;
-        let mut blocks = HashMap::new();
-
-        while !self.is_function_definition()
-           && !self.curr_is(TokenKind::EOF) {
-
-            if self.curr_is(TokenKind::Label) {
-                let label = self.parse_label()?;
-                self.eat(TokenKind::Colon)?;
-                blocks.insert(label, count);
-            }
-            pre_instructions.push(self.parse_pre_instruction()?);
-            count += 1;
-        }
-
         let mut values: HashMap<ObjectValue, usize> = HashMap::new();
         let mut variables: HashMap<Variable, usize> = HashMap::new();
 
-        for (idx, arg) in args.into_iter().enumerate() {
-            variables.insert(arg, idx);
+        let mut blocks_lines = HashMap::new();
+        let mut count = 0;
+        
+        for (label, pre) in blocks.iter() {
+            blocks_lines.insert(label.clone(), count);
+            count += pre.len();
         }
 
-        let instructions = pre_instructions
-            .into_iter()
-            .map(|i| Parser::convert_instruction(i, &mut values, &mut variables, &blocks))
-            .collect();
+        let mut instructions = vec![];
+
+        for (_, pre_instructions) in blocks {
+            instructions.extend(
+                pre_instructions
+                    .into_iter()
+                    .map(|i| Parser::convert_instruction(i, &mut values, &mut variables, &blocks_lines))
+            )
+        }
 
         let mut constants = vec![ObjectValue::Null; values.len()];
 
@@ -98,13 +75,25 @@ impl<'a> Parser<'a> {
 
         let variables = variables.len();
 
-        Ok(Function {
-            name,
-            line,
+        Ok(Module {
             variables,
             constants,
             instructions,
         })
+    }
+
+    fn parse_block(&mut self) -> ParserResult<(Label, Vec<PreInstruction>)> {
+        let mut pre_instructions = vec![];
+
+        let label = self.parse_label()?;
+        self.eat(TokenKind::Colon)?;
+
+        while !self.is_block_definition()
+           && !self.curr_is(TokenKind::EOF) {
+            pre_instructions.push(self.parse_pre_instruction()?);
+        }
+
+        Ok((label, pre_instructions))
     }
 
     fn parse_pre_instruction(&mut self) -> ParserResult<PreInstruction> {
@@ -134,7 +123,7 @@ impl<'a> Parser<'a> {
         instruction: PreInstruction,
         values: &mut HashMap<ObjectValue, usize>,
         variables: &mut HashMap<Variable, usize>,
-        blocks: &HashMap<Label, usize>) -> Instruction {
+        blocks_lines: &HashMap<Label, usize>) -> Instruction {
         let arg = match instruction.arg {
             Some(Value::String(s)) => {
                 let len = values.len();
@@ -153,11 +142,7 @@ impl<'a> Parser<'a> {
                 *variables.entry(v).or_insert(len)
             }
             Some(Value::Label(l)) => {
-                *blocks.get(&l).unwrap()
-            }
-            Some(Value::Identifier(i)) => {
-                let len = values.len();
-                *values.entry(ObjectValue::String(i.0)).or_insert(len)
+                *blocks_lines.get(&l).unwrap()
             }
             None => 0
         };
@@ -168,37 +153,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn is_function_definition(&self) -> bool {
-        self.curr_is(TokenKind::Identifier) 
-            && (self.peek_is(TokenKind::Colon)
-                || self.peek_is(TokenKind::LParen))
-    }
-
-    fn parse_args(&mut self) -> ParserResult<Vec<Variable>> {
-        self.eat(TokenKind::LParen)?;
-        let args = self.parse_seq_with(TokenKind::Comma, Self::parse_variable)?;
-        self.eat(TokenKind::RParen)?;
-        Ok(args)
-    }
-
-    fn parse_variable(&mut self) -> ParserResult<Variable> {
-        match self.curr.clone() {
-            Some(Token { kind: TokenKind::Variable, value: Some(variable), .. }) => {
-                self.next()?;
-                Ok(Variable(variable))
-            }
-            _ => Err(self.unexpected(&[TokenKind::Variable]))
-        }
-    }
-
-    fn parse_identifier(&mut self) -> ParserResult<Identifier> {
-        match self.curr.clone() {
-            Some(Token { kind: TokenKind::Identifier, value: Some(ident), .. }) => {
-                self.next()?;
-                Ok(Identifier(ident))
-            }
-            _ => Err(self.unexpected(&[TokenKind::Identifier])),
-        }
+    fn is_block_definition(&self) -> bool {
+        self.curr_is(TokenKind::Label) && self.peek_is(TokenKind::Colon)
     }
 
     fn parse_label(&mut self) -> ParserResult<Label> {
@@ -227,10 +183,6 @@ impl<'a> Parser<'a> {
                 let value = d.parse::<f64>().unwrap();
                 Ok(Value::Decimal(value))
             }
-            Some(Token { kind: TokenKind::Identifier, value: Some(identifier), .. }) => {
-                self.next()?;
-                Ok(Value::Identifier(Identifier(identifier)))
-            }
             Some(Token { kind: TokenKind::Label, value: Some(label), .. }) => {
                 self.next()?;
                 Ok(Value::Label(Label(label)))
@@ -243,26 +195,10 @@ impl<'a> Parser<'a> {
                 TokenKind::String,
                 TokenKind::Integer,
                 TokenKind::Decimal,
-                TokenKind::Identifier,
                 TokenKind::Label,
                 TokenKind::Variable,
             ])),
         }
-    }
-
-    fn parse_seq_with<T, F>(&mut self, sep: TokenKind, mut f: F)
-      -> ParserResult<Vec<T>>
-      where F: FnMut(&mut Self) -> ParserResult<T> {
-        let mut result = vec![];
-
-        loop {
-            result.push(f(self)?);
-            if !self.try_eat(sep)? {
-                break;
-            }
-        }
-
-        Ok(result)
     }
 
     fn next(&mut self) -> ParserResult<()> {
@@ -281,15 +217,6 @@ impl<'a> Parser<'a> {
             Ok(())
         } else {
             Err(self.unexpected(&[tkn]))
-        }
-    }
-
-    fn try_eat(&mut self, kind: TokenKind) -> ParserResult<bool> {
-        if self.curr_is(kind) {
-            self.next()?;
-            Ok(true)
-        } else {
-            Ok(false)
         }
     }
 
@@ -322,7 +249,7 @@ impl<'a> Parser<'a> {
     }
 
     fn recover(&mut self, errors: &mut Vec<MachinaError>) {
-        while !self.is_function_definition()
+        while !self.is_block_definition()
            && !self.curr_is(TokenKind::EOF) {
             if let Err(err) = self.next() { errors.push(err) }
         }

@@ -1,8 +1,6 @@
 use crate::object::ObjectValue;
 use crate::lexer::TokenKind;
 
-use std::collections::HashMap;
-
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum InstructionKind {
     Const,
@@ -91,9 +89,6 @@ pub enum Value {
 
     /// Label
     Label(Label),
-
-    /// Identifier
-    Identifier(Identifier),
 }
 
 #[derive(Debug, Clone)]
@@ -111,23 +106,8 @@ pub struct Instruction {
 }
 
 #[derive(Debug, Clone)]
-pub struct Function {
-    pub name: String,
-    pub line: u32,
+pub struct Module {
     pub variables: usize,
     pub constants: Vec<ObjectValue>,
     pub instructions: Vec<Instruction>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Module {
-    pub functions: HashMap<String, Function>
-}
-
-impl Module {
-    pub fn new() -> Module {
-        Module {
-            functions: HashMap::new()
-        }
-    }
 }
