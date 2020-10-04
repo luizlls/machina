@@ -1,29 +1,22 @@
-main:
-  const     35
-  call      fib
-  output
-  return
+@entrypoint
+  MOVE      #0, 35
+  CALL      #0, @fibonacci, #0, #0
+  WRITE     #0
+  RET       #0
 
-fib:
-  store     $n
+@fibonacci
+  JLE       .L0, #0, 2
 
-  load      $n
-  const     2
-  lt
-  jumpt     L0
+  MOVE      #1, #0
+  SUB       #1, 1
+  CALL      #1, @fibonacci, #1, #1
 
-  load      $n
-  const     1
-  sub
-  call      fib
+  MOVE      #2, #0
+  SUB       #2, 2
+  CALL      #2, @fibonacci, #2, #2
 
-  load      $n
-  const     2
-  sub
-  call      fib
+  ADD       #1, #2
+  MOVE      #0, #1
 
-  add
-  return
-L0:
-  load      $n
-  return
+.L0
+  RET       #0

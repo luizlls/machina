@@ -3,32 +3,27 @@ use std::fmt;
 use std::fmt::{Display};
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum ErrorKind {
-    InvalidEscapeCharacter,
+pub enum MachinaErrorKind {
     InvalidCharacter(char),
+    InvalidInstruction(String),
+    Unexpected(String),
     UnterminatedString,
-     // expected, found
-    UnexpectedToken(Vec<String>, String),
 }
 
-impl Display for ErrorKind {
+impl Display for MachinaErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ErrorKind::InvalidEscapeCharacter => {
-                write!(f, "Invalid escape character")
-            }
-            ErrorKind::InvalidCharacter(chr) => {
+            MachinaErrorKind::InvalidCharacter(chr) => {
                 write!(f, "Invalid character `{}`", chr)
             }
-            ErrorKind::UnterminatedString => {
+            MachinaErrorKind::UnterminatedString => {
                 write!(f, "Unterminated string")
             }
-            ErrorKind::UnexpectedToken(expected, found) => {
-                if expected.is_empty() {
-                    write!(f, "Unexpected {}", found)
-                } else {
-                    write!(f, "Expected {}, found {}", expected.join(" or "), found)
-                }
+            MachinaErrorKind::InvalidInstruction(ins) => {
+                write!(f, "Invalid instruction `{}`", ins)
+            }
+            MachinaErrorKind::Unexpected(token) => {
+                write!(f, "Unexpected `{}`", token)
             }
         }
     }
@@ -36,8 +31,8 @@ impl Display for ErrorKind {
 
 #[derive(Debug, Clone)]
 pub struct MachinaError {
-    pub kind: ErrorKind,
-    pub line: u32
+    pub kind: MachinaErrorKind,
+    pub line: usize
 }
 
-impl Error for ErrorKind { }
+impl Error for MachinaErrorKind { }
