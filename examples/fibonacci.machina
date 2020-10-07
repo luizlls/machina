@@ -1,22 +1,22 @@
 @entrypoint
-  MOVE      #0, 35
-  CALL      #0, @fibonacci, #0, #0
-  WRITE     #0
-  RET       #0
+  MOVE      %0, 35
+  CALL      @fibonacci, %0, %0, %0
+  WRITE     %0
+  RET       %0
 
 @fibonacci
-  JLE       .L0, #0, 2
+  JLE       .L0, %0, 2
 
-  MOVE      #1, #0
-  SUB       #1, 1
-  CALL      #1, @fibonacci, #1, #1
+  MOVE      %1, %0
+  SUB       %1, 1
+  CALL      @fibonacci, %1, %1, %1
 
-  MOVE      #2, #0
-  SUB       #2, 2
-  CALL      #2, @fibonacci, #2, #2
+  MOVE      %2, %0
+  SUB       %2, 2
+  CALL      @fibonacci, %2, %2, %2
 
-  ADD       #1, #2
-  MOVE      #0, #1
+  ADD       %1, %2
+  MOVE      %0, %1
 
 .L0
-  RET       #0
+  RET       %0

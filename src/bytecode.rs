@@ -1,3 +1,5 @@
+use std::{cmp::Ordering, hash::{Hash, Hasher}, ops::Deref};
+
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum OpCode {
@@ -96,14 +98,74 @@ impl Instruction {
             panic!("Operand is not a immediate value")
         }
     }
+
+    #[inline(always)]
+    pub fn function(&self, arg: usize) -> FunctionIdx {
+        if let Operand::Function(f) = self.operands[arg] {
+            f
+        } else {
+            panic!("Operand is not a function index")
+        }
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub enum Constant {
 
     String(String),
 
-    Number(f64),
+    Number(Number),
+}
 
-    Integer(i32),
+
+#[derive(Debug, Clone, Copy, Default, PartialOrd, PartialEq)]
+pub struct Number(f64);
+
+impl Eq for Number {}
+
+impl Hash for Number {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.to_bits().hash(state)
+    }
+}
+
+impl Ord for Number {
+    fn cmp(&self, other: &Number) -> Ordering {
+        match self.partial_cmp(&other) {
+            Some(ord) => ord,
+            None => unreachable!(),
+        }
+    }
+}
+
+impl Deref for Number {
+    type Target = f64;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+
+#[derive(Debug, Clone)]
+pub struct Function {
+    pub locals: u8,
+    pub instructions: Vec<Instruction>
+}
+
+impl Function {
+
+    pub fn new(locals: u8, instructions: Vec<Instruction>) -> Function {
+        Function {
+            locals,
+            instructions
+        }
+    }
+}
+
+
+#[derive(Debug, Clone)]
+pub struct Module {
+    pub functions: Vec<Function>,
+    pub constants: Vec<Constant>,
 }

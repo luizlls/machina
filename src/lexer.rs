@@ -83,7 +83,7 @@ impl<'s> Lexer<'s> {
                 Some('.') => {
                     self.identifier(Token::Label)
                 }
-                Some('#') => {
+                Some('%') => {
                     self.identifier(Token::Register)
                 }
                 Some('@') => {
@@ -408,7 +408,7 @@ mod tests {
 
     #[test]
     fn lex_register() {
-        let mut lexer = Lexer::new("MOVE #0, 1");
+        let mut lexer = Lexer::new("MOVE %0, 1");
 
         let _ = lexer.next();
         let (reg, num) = next_token(&mut lexer);
@@ -439,7 +439,7 @@ mod tests {
 
     #[test]
     fn lex_complete_instruction() {
-        let source = "ADD #0, 1";
+        let source = "ADD %0, 1";
         let mut lexer = Lexer::new(&source);
 
         let (add, _) = next_token(&mut lexer);
@@ -456,7 +456,7 @@ mod tests {
 
     #[test]
     fn lex_number() {
-        let source = "MOVE #0, 42";
+        let source = "MOVE %0, 42";
         let mut lexer = Lexer::new(&source);
 
         let _ = lexer.next();
@@ -470,7 +470,7 @@ mod tests {
 
     #[test]
     fn lex_float_number() {
-        let source = "MOVE #0, 3.14519";
+        let source = "MOVE %0, 3.14519";
         let mut lexer = Lexer::new(&source);
 
         let _ = lexer.next();
@@ -484,7 +484,7 @@ mod tests {
 
     #[test]
     fn lex_simple_string() {
-        let source = "MOVE #0, \"Hello, World\"";
+        let source = "MOVE %0, \"Hello, World\"";
         let mut lexer = Lexer::new(&source);
 
         let _ = lexer.next();
@@ -498,7 +498,7 @@ mod tests {
 
     #[test]
     fn lex_complex_string() {
-        let source = r#"MOVE #0, "MOVE #0, \"MOVE...\"""#;
+        let source = r#"MOVE %0, "MOVE %0, \"MOVE...\"""#;
         let mut lexer = Lexer::new(&source);
 
         let _ = lexer.next();
@@ -507,17 +507,17 @@ mod tests {
         let (string, string_value) = next_token(&mut lexer);
 
         assert_eq!(string, Token::String);
-        assert_eq!(string_value, Some(r#"MOVE #0, \"MOVE...\""#.into()));
+        assert_eq!(string_value, Some(r#"MOVE %0, \"MOVE...\""#.into()));
     }
 
     #[test]
     fn lex_complete() {
         let source = r#"
             @entrypoint
-              MOVE  #0, 1
-              MOVE  #1, 2
-              ADD   #0, #1
-              RET   #0
+              MOVE  %0, 1
+              MOVE  %1, 2
+              ADD   %0, %1
+              RET   %0
         "#;
 
         let mut lexer = Lexer::new(&source);

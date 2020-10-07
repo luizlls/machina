@@ -1,15 +1,14 @@
 use machina::{
-    ast::{
+    bytecode::{
         Operand,
         OpCode,
         Instruction,
+        Function,
     },
     machina::{
         Environment,
-        Function,
-        CommonFunction,
-        Machine,
-    }
+        Machina,
+    },
 };
 
 fn main() {
@@ -58,8 +57,8 @@ fn fibonacci() {
         Instruction::new(
             OpCode::Call,
             [
-                Operand::Register(0),
                 Operand::Function(0),
+                Operand::Register(0),
                 Operand::Register(0),
                 Operand::Register(0),
             ]
@@ -123,8 +122,8 @@ fn fibonacci() {
         Instruction::new(
             OpCode::Call,
             [
-                Operand::Register(1),
                 Operand::Function(0),
+                Operand::Register(1),
                 Operand::Register(1),
                 Operand::Register(1),
             ]
@@ -155,8 +154,8 @@ fn fibonacci() {
         Instruction::new(
             OpCode::Call,
             [
-                Operand::Register(2),
                 Operand::Function(0),
+                Operand::Register(2),
                 Operand::Register(2),
                 Operand::Register(2),
             ]
@@ -195,13 +194,13 @@ fn fibonacci() {
     ];
 
     let functions = vec![
-        Function::Common(CommonFunction::new(3, fibonacci)),
-        Function::Common(CommonFunction::new(1, entrypoint)),
+        Function::new(3, fibonacci),
+        Function::new(1, entrypoint),
     ];
 
     let environment = Environment {
         functions,
     };
 
-    Machine::new(&environment).call(1, 0, 0);
+    Machina::new(&environment).call(1, 0, 0);
 }

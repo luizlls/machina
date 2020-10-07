@@ -99,7 +99,7 @@ impl Value {
     }
 
     #[inline(always)]
-    pub fn get_num_uncheked(&self) -> f64 {
+    pub fn get_num_unchecked(&self) -> f64 {
         f64::from_bits(self.0)
     }
 
@@ -132,7 +132,7 @@ impl Value {
     }
 
     #[inline(always)]
-    pub fn get_ptr_uncheked<T>(&self) -> *const T {
+    pub fn get_ptr_unchecked<T>(&self) -> *const T {
         unsafe { ::std::mem::transmute(self.0 & !PTR_TAG) }
     }
 
@@ -143,7 +143,7 @@ impl Value {
     }
 
     #[inline(always)]
-    pub fn get_ptr_mut_uncheked<T>(&self) -> *mut T {
+    pub fn get_ptr_mut_unchecked<T>(&self) -> *mut T {
         unsafe { ::std::mem::transmute(self.0 & !PTR_TAG) }
     }
 
@@ -154,7 +154,7 @@ impl Value {
     }
 
     #[inline(always)]
-    pub fn get_fun_uncheked(&self) -> u32 {
+    pub fn get_fun_unchecked(&self) -> u32 {
         (self.0 & !FUN_TAG) as u32
     }
 }
@@ -162,13 +162,13 @@ impl Value {
 impl Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_num() {
-            write!(f, "NUM {}", self.get_num_uncheked())
+            write!(f, "NUM {}", self.get_num_unchecked())
         } else if self.is_int() {
             write!(f, "INT {}", self.get_int_unchecked())
         } else if self.is_char() {
             write!(f, "CHAR {}", self.get_char_unchecked())
         } else if self.is_fun() {
-            write!(f, "FUN {}", self.get_fun_uncheked())
+            write!(f, "FUN {}", self.get_fun_unchecked())
         } else if self.is_ptr() {
             write!(f, "PTR {}", (self.get_raw() & !PTR_TAG))
         } else if self.is_null() {
@@ -224,14 +224,14 @@ mod tests {
     fn numbers() {
         let a = Value::from(3.141592);
         assert!(a.is_num());
-        assert_eq!(a.get_num_uncheked(), 3.141592);
+        assert_eq!(a.get_num_unchecked(), 3.141592);
     }
 
     #[test]
     fn nans() {
         let a = Value::nan();
         assert!(!a.is_num());
-        assert!(a.get_num_uncheked().is_nan());
+        assert!(a.get_num_unchecked().is_nan());
     }
 
     #[test]
@@ -289,8 +289,8 @@ mod tests {
         let val_ptr: *const Value = &*val;
         let p = Value::ptr(val_ptr);
         assert!(p.is_ptr());
-        assert_eq!(p.get_ptr_uncheked(), val_ptr);
-        let d = unsafe { *p.get_ptr_uncheked::<Value>() };
+        assert_eq!(p.get_ptr_unchecked(), val_ptr);
+        let d = unsafe { *p.get_ptr_unchecked::<Value>() };
         assert_eq!(d, *val);
         assert!(d.is_int());
         assert_eq!(d.get_int_unchecked(), 42);

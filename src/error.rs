@@ -6,8 +6,8 @@ use std::fmt::{Display};
 pub enum MachinaErrorKind {
     InvalidCharacter(char),
     InvalidInstruction(String),
-    Unexpected(String),
     UnterminatedString,
+    Expected(String),
 }
 
 impl Display for MachinaErrorKind {
@@ -22,8 +22,8 @@ impl Display for MachinaErrorKind {
             MachinaErrorKind::InvalidInstruction(ins) => {
                 write!(f, "Invalid instruction `{}`", ins)
             }
-            MachinaErrorKind::Unexpected(token) => {
-                write!(f, "Unexpected `{}`", token)
+            MachinaErrorKind::Expected(token) => {
+                write!(f, "Expected {}", token)
             }
         }
     }
