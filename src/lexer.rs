@@ -297,6 +297,7 @@ pub enum Token {
     RBracket, // ]
     Comma,    // ,
 
+    // instructions
     Call,
     Ret,
     Move,
@@ -328,11 +329,16 @@ pub enum Token {
     Shr,
     Write,
 
+    // values
     String,
     Number,
     Label,
     Function,
     Register,
+
+    // descriptor
+    Operand,
+    Instruction,
 
     // others
     EOF,
@@ -383,6 +389,8 @@ impl fmt::Display for Token {
             Token::Label => write!(f, "label"),
             Token::Function => write!(f, "function"),
             Token::Register => write!(f, "register"),
+            Token::Operand => write!(f, "operand"),
+            Token::Instruction => write!(f, "instruction"),
             Token::EOF => write!(f, "end of file"),
         }
     }

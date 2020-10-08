@@ -7,7 +7,7 @@ pub enum MachinaErrorKind {
     InvalidCharacter(char),
     InvalidInstruction(String),
     UnterminatedString,
-    Expected(String),
+    Expected(String, String),
 }
 
 impl Display for MachinaErrorKind {
@@ -22,12 +22,14 @@ impl Display for MachinaErrorKind {
             MachinaErrorKind::InvalidInstruction(ins) => {
                 write!(f, "Invalid instruction `{}`", ins)
             }
-            MachinaErrorKind::Expected(token) => {
-                write!(f, "Expected {}", token)
+            MachinaErrorKind::Expected(token, found) => {
+                write!(f, "Expected {}, but found {}", token, found)
             }
         }
     }
 }
+
+impl Error for MachinaErrorKind { }
 
 #[derive(Debug, Clone)]
 pub struct MachinaError {
@@ -35,4 +37,10 @@ pub struct MachinaError {
     pub line: usize
 }
 
-impl Error for MachinaErrorKind { }
+impl Display for MachinaError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ERROR [{}]: {}", self.line, self.kind)
+    }
+}
+
+impl Error for MachinaError {}

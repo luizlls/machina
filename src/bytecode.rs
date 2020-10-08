@@ -1,6 +1,5 @@
 use std::{cmp::Ordering, hash::{Hash, Hasher}, ops::Deref};
 
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum OpCode {
     Call,
@@ -54,7 +53,7 @@ pub enum Operand {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Instruction {
     pub opcode: OpCode,
-    operands: [Operand; 4]
+    pub operands: [Operand; 4]
 }
 
 impl Instruction {

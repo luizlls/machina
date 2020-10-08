@@ -41,10 +41,10 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse(mut self) -> Result<Module, MachinaError> {
+    pub fn parse(mut self) -> Result<Module, MachinaError> {
         let _ = self.next();
 
-        while !self.curr_is(Token::EOF) {
+        while !self.token_is(Token::EOF) {
             let (name, function) = self.parse_function()?;
             let index = self.functions.len();
             self.functions.push(function);
@@ -68,7 +68,7 @@ impl<'a> Parser<'a> {
         count += initial_block.instructions.len();
         blocks.insert("<main>".into(), initial_block);
         
-        while !self.curr_is(Token::Function) {
+        while self.token_is(Token::Label) {
             let label = self.eat_value(Token::Label)?;
             let block = self.parse_block(count)?;
             count = count + block.instructions.len();
@@ -82,7 +82,9 @@ impl<'a> Parser<'a> {
     fn parse_block(&mut self, line: usize) -> ParserResult<Block> {
         let mut instructions = vec![];
 
-        while !self.curr_is(Token::Label) {
+        while !self.token_is(Token::Label)
+          &&  !self.token_is(Token::Function)
+          &&  !self.token_is(Token::EOF) {
             instructions.push(self.parse_pre_instruction()?);
         }
 
@@ -90,41 +92,189 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_pre_instruction(&mut self) -> ParserResult<PreInstruction> {
-        Ok(PreInstruction {
-            opcode: OpCode::Write,
-            operands: vec![]
-        })
+        match self.token {
+            Token::Call => self.parse_call_instruction(),
+            Token::Move => self.parse_move_instruction(),
+
+            Token::Jmp
+          | Token::Jt
+          | Token::Jf
+          | Token::JLt
+          | Token::JLe
+          | Token::JGt
+          | Token::JGe
+          | Token::JEq
+          | Token::JNe => self.parse_jump_instructions(),
+
+            Token::Lt
+          | Token::Le
+          | Token::Gt
+          | Token::Ge
+          | Token::Eq
+          | Token::Ne
+          | Token::Add
+          | Token::Sub
+          | Token::Mul
+          | Token::Div
+          | Token::Mod
+          | Token::And
+          | Token::Or
+          | Token::Xor
+          | Token::Shl
+          | Token::Shr => self.parse_binary_instructions(),
+
+            Token::Ret
+          | Token::Not
+          | Token::Write => self.parse_unary_instructions(),
+
+            _ => {
+                return Err(self.unexpected(&[Token::Instruction]));
+            }
+        }
     }
 
-    fn parse_pre_operand(&mut self) -> ParserResult<PreOperand> {
-        let operand = match self.token {
-            Token::String => {
-                PreOperand::String(self.eat_value(Token::String)?)
-            }
-            Token::Number => {
-                PreOperand::Number(self.eat_value(Token::Number)?)
-            }
-            Token::Function => {
-                PreOperand::Function(self.eat_value(Token::Function)?)
-            }
-            Token::Register => {
-                PreOperand::Register(self.eat_value(Token::Register)?)
-            }
-            Token::Label => {
-                PreOperand::Label(self.eat_value(Token::Label)?)
-            }
+    fn parse_call_instruction(&mut self) -> ParserResult<PreInstruction> {
+        self.eat(Token::Call)?;
+
+        let operands = vec![
+            self.parse_pre_operand(Token::Function, true)?,
+            self.parse_pre_operand(Token::Register, true)?,
+            self.parse_pre_operand(Token::Register, true)?,
+            self.parse_pre_operand(Token::Register, false)?,
+        ];
+
+        Ok(PreInstruction { opcode: OpCode::Call, operands })
+    }
+
+    fn parse_move_instruction(&mut self) -> ParserResult<PreInstruction> {
+        self.eat(Token::Move)?;
+
+        let operands = vec![
+            self.parse_pre_operand(Token::Register, true)?,
+            self.parse_pre_operand(Token::Operand, false)?,
+        ];
+
+        Ok(PreInstruction { opcode: OpCode::Move, operands })
+    }
+
+    fn parse_jump_instructions(&mut self) -> ParserResult<PreInstruction> {
+        let opcode = match self.token {
+            Token::Jmp => OpCode::Jmp,
+            Token::Jt  => OpCode::Jt,
+            Token::Jf  => OpCode::Jf,
+            Token::JLt => OpCode::JLt,
+            Token::JLe => OpCode::JLe,
+            Token::JGt => OpCode::JGt,
+            Token::JGe => OpCode::JGe,
+            Token::JEq => OpCode::JEq,
+            Token::JNe => OpCode::JNe,
             _ => {
-                return Err(
-                    self.unexpected(&[
-                        Token::String,
-                        Token::Number,
-                        Token::Function,
-                        Token::Register,
-                        Token::Label
-                    ])
-                )
+                return Err(self.unexpected(&[Token::Instruction]));
             }
         };
+
+        self.next()?;
+
+        let mut operands = vec![
+            self.parse_pre_operand(Token::Label, true)?
+        ];
+
+        match opcode {
+            OpCode::Jmp => {},
+            OpCode::Jt
+          | OpCode::Jf => {
+                operands.push(self.parse_pre_operand(Token::Register, true)?);
+            }
+            OpCode::JLt
+          | OpCode::JLe
+          | OpCode::JGt
+          | OpCode::JGe
+          | OpCode::JEq
+          | OpCode::JNe => {
+                operands.push(self.parse_pre_operand(Token::Register, true)?);
+                operands.push(self.parse_pre_operand(Token::Operand, false)?);
+          }
+            _ => unreachable!()
+        };
+
+        Ok(PreInstruction { opcode, operands })
+    }
+
+    fn parse_unary_instructions(&mut self) -> ParserResult<PreInstruction> {
+        let opcode = match self.token {
+            Token::Not => OpCode::Not,
+            Token::Ret => OpCode::Ret,
+            Token::Write => OpCode::Write,
+            _ => {
+                return Err(self.unexpected(&[Token::Instruction]));
+            }
+        };
+
+        self.next()?;
+
+        let operands = vec![
+            self.parse_pre_operand(Token::Register, false)?,
+        ];
+
+        Ok(PreInstruction { opcode, operands })
+    }
+
+    fn parse_binary_instructions(&mut self) -> ParserResult<PreInstruction> {
+        let opcode = match self.token {
+            Token::Lt => OpCode::Lt,
+            Token::Le => OpCode::Le,
+            Token::Gt => OpCode::Gt,
+            Token::Ge => OpCode::Ge,
+            Token::Eq => OpCode::Eq,
+            Token::Ne => OpCode::Ne,
+            Token::Add => OpCode::Add,
+            Token::Sub => OpCode::Sub,
+            Token::Mul => OpCode::Mul,
+            Token::Div => OpCode::Div,
+            Token::Mod => OpCode::Mod,
+            Token::And => OpCode::And,
+            Token::Or  => OpCode::Or,
+            Token::Xor => OpCode::Xor,
+            Token::Shl => OpCode::Shl,
+            Token::Shr => OpCode::Shr,
+            _ => {
+                return Err(self.unexpected(&[Token::Instruction]));
+            }
+        };
+
+        self.next()?;
+
+        let operands = vec![
+            self.parse_pre_operand(Token::Register, true)?,
+            self.parse_pre_operand(Token::Operand, false)?,
+        ];
+
+        Ok(PreInstruction { opcode, operands })
+    }
+
+    fn parse_pre_operand(&mut self, kind: Token, eat_comma: bool) -> ParserResult<PreOperand> {
+        if kind == Token::Operand {
+            self.expect_one_of(&[Token::String, Token::Number, Token::Register])?;
+        } else {
+            self.expect_one_of(&[kind])?;
+        }
+
+        let operand = match self.token {
+            Token::String => PreOperand::String(self.eat_value(Token::String)?),
+            Token::Number => PreOperand::Number(self.eat_value(Token::Number)?),
+            Token::Register => PreOperand::Register(self.eat_value(Token::Register)?),
+            Token::Function => PreOperand::Function(self.eat_value(Token::Function)?),
+            Token::Label => PreOperand::Label(self.eat_value(Token::Label)?),
+            _ => {
+                return Err(
+                    self.unexpected(&[Token::String, Token::Number, Token::Register, Token::Function, Token::Label])
+                );
+            }
+        };
+
+        if eat_comma {
+            self.eat(Token::Comma)?;
+        }
 
         Ok(operand)
     }
@@ -150,7 +300,7 @@ impl<'a> Parser<'a> {
         let value = if self.token == tkn {
             self.lexer.value().unwrap()
         } else {
-            return Err(self.unexpected(&[tkn]))
+            return Err(self.unexpected(&[tkn]));
         };
 
         self.next()?;
@@ -158,18 +308,25 @@ impl<'a> Parser<'a> {
         Ok(value)
     }
 
-    fn curr_is(&self, tkn: Token) -> bool {
+    fn token_is(&self, tkn: Token) -> bool {
         self.token == tkn
     }
 
+    fn expect_one_of(&self, tokens: &[Token]) -> ParserResult<()> {
+        if tokens.contains(&self.token) {
+            Ok(())
+        } else {
+            Err(self.unexpected(tokens))
+        }
+    }
     
-    fn unexpected(&mut self, tokens: &[Token]) -> MachinaError {
+    fn unexpected(&self, tokens: &[Token]) -> MachinaError {
         let expected = tokens
             .iter()
             .map(|t| format!("`{}`", t)).collect::<Vec<String>>().join(", ");
 
         MachinaError {
-            kind: MachinaErrorKind::Expected(format!("one of {}", expected)),
+            kind: MachinaErrorKind::Expected(format!("one of {}", expected), format!("`{}`", self.token)),
             line: self.lexer.line(),
         }
     }

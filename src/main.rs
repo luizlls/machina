@@ -1,3 +1,5 @@
+use std::fs;
+
 use machina::{
     bytecode::{
         Operand,
@@ -9,6 +11,7 @@ use machina::{
         Environment,
         Machina,
     },
+    parser::Parser
 };
 
 fn main() {
@@ -17,28 +20,24 @@ fn main() {
         println!("Machina v {}", env!("CARGO_PKG_VERSION"));
         println!("Use 'machina <file name>' to compile and/or execute a file");
     } else {
-        // file(args.get(1).unwrap().to_string());
-        fibonacci();
+        file(args.get(1).unwrap().to_string());
     }
 }
 
-fn file(_file: String) {
-    // let input = fs::read_to_string(file.clone()).expect("Couldn't open the file");
-    // exec(input);
+fn file(file: String) {
+    let input = fs::read_to_string(file.clone()).expect("Couldn't open the file");
+    exec(input);
 }
 
-fn exec(_source: String) {
-    // let mut machina = Machina::new();
-    // match Parser::new(&source).parse() {
-    //     Ok(module) => {
-    //         machina.run(module);
-    //     }
-    //     Err(errors) => {
-    //         for err in errors {
-    //             println!("Error [line: {}] {}", err.line, err.kind);
-    //         }
-    //     }
-    // }
+fn exec(source: String) {
+    match Parser::new(&source).parse() {
+        Ok(_module) => {
+            fibonacci();
+        }
+        Err(error) => {
+            eprintln!("{}", error)
+        }
+    }
 }
 
 fn fibonacci() {
