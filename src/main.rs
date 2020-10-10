@@ -2,9 +2,7 @@ use std::fs;
 
 use machina::{
     bytecode::{
-        Operand,
-        OpCode,
-        Instruction,
+        Module,
         Function,
     },
     machina::{
@@ -31,8 +29,8 @@ fn file(file: String) {
 
 fn exec(source: String) {
     match Parser::new(&source).parse() {
-        Ok(_module) => {
-            fibonacci();
+        Ok(module) => {
+            eval(module)
         }
         Err(error) => {
             eprintln!("{}", error)
@@ -40,166 +38,13 @@ fn exec(source: String) {
     }
 }
 
-fn fibonacci() {
-    let entrypoint = vec![
+fn eval(module: Module) {
 
-        Instruction::new(
-            OpCode::Move,
-            [
-                Operand::Register(0),
-                Operand::Immediate(35),
-                Operand::None,
-                Operand::None,
-            ]
-        ),
-
-        Instruction::new(
-            OpCode::Call,
-            [
-                Operand::Function(0),
-                Operand::Register(0),
-                Operand::Register(0),
-                Operand::Register(0),
-            ]
-        ),
-
-        Instruction::new(
-            OpCode::Write,
-            [
-                Operand::Register(0),
-                Operand::None,
-                Operand::None,
-                Operand::None,
-            ]
-        ),
-
-        Instruction::new(
-            OpCode::Ret,
-            [
-                Operand::Register(0),
-                Operand::None,
-                Operand::None,
-                Operand::None,
-            ]
-        )
-    ];
-
-
-    let fibonacci = vec![
-        // if n < 2
-        Instruction::new(
-            OpCode::JLe,
-            [
-                Operand::Position(9),
-                Operand::Register(0),
-                Operand::Immediate(1),
-                Operand::None
-            ]
-        ),
-
-        // fib (n - 1)
-        Instruction::new(
-            OpCode::Move,
-            [
-                Operand::Register(1),
-                Operand::Register(0),
-                Operand::None,
-                Operand::None,
-            ]
-        ),
-
-        Instruction::new(
-            OpCode::Sub,
-            [
-                Operand::Register(1),
-                Operand::Immediate(1),
-                Operand::None,
-                Operand::None,
-            ]
-        ),
-
-        Instruction::new(
-            OpCode::Call,
-            [
-                Operand::Function(0),
-                Operand::Register(1),
-                Operand::Register(1),
-                Operand::Register(1),
-            ]
-        ),
-
-
-        // fib (n - 2)
-        Instruction::new(
-            OpCode::Move,
-            [
-                Operand::Register(2),
-                Operand::Register(0),
-                Operand::None,
-                Operand::None,
-            ]
-        ),
-
-        Instruction::new(
-            OpCode::Sub,
-            [
-                Operand::Register(2),
-                Operand::Immediate(2),
-                Operand::None,
-                Operand::None,
-            ]
-        ),
-
-        Instruction::new(
-            OpCode::Call,
-            [
-                Operand::Function(0),
-                Operand::Register(2),
-                Operand::Register(2),
-                Operand::Register(2),
-            ]
-        ),
-
-        Instruction::new(
-            OpCode::Add,
-            [
-                Operand::Register(1),
-                Operand::Register(2),
-                Operand::None,
-                Operand::None,
-            ]
-        ),
-        Instruction::new(
-            OpCode::Move,
-            [
-                Operand::Register(0),
-                Operand::Register(1),
-                Operand::None,
-                Operand::None,
-            ]
-        ),
-
-        // L0
-        Instruction::new(
-            OpCode::Ret,
-            [
-                Operand::Register(0),
-                Operand::None,
-                Operand::None,
-                Operand::None,
-            ]
-        )
-
-    ];
-
-    let functions = vec![
-        Function::new(3, fibonacci),
-        Function::new(1, entrypoint),
-    ];
+    let Module { functions, .. } = module;
 
     let environment = Environment {
         functions,
     };
 
-    Machina::new(&environment).call(1, 0, 0);
+    Machina::new(&environment).call(0, 0, 0);
 }

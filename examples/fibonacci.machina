@@ -5,7 +5,7 @@
   RET       %0
 
 @fibonacci
-  JLE       .L0, %0, 2
+  JLE       .L0, %0, 1
 
   MOVE      %1, %0
   SUB       %1, 1

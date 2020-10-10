@@ -145,6 +145,12 @@ impl Deref for Number {
     }
 }
 
+impl Into<Number> for f64 {
+    fn into(self) -> Number {
+        Number(self)
+    }
+}
+
 
 #[derive(Debug, Clone)]
 pub struct Function {

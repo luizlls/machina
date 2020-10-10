@@ -4,26 +4,38 @@ use std::fmt::{Display};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MachinaErrorKind {
-    InvalidCharacter(char),
-    InvalidInstruction(String),
     UnterminatedString,
     Expected(String, String),
+    InvalidCharacter(char),
+    InvalidInstruction(String),
+    TargetNotFound(String),
+    FunctionNotFound(String),
+    InvalidRegister(String)
 }
 
 impl Display for MachinaErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            MachinaErrorKind::InvalidCharacter(chr) => {
-                write!(f, "Invalid character `{}`", chr)
-            }
             MachinaErrorKind::UnterminatedString => {
                 write!(f, "Unterminated string")
+            }
+            MachinaErrorKind::Expected(token, found) => {
+                write!(f, "Expected one of {}, but found `{}`", token, found)
+            }
+            MachinaErrorKind::InvalidCharacter(chr) => {
+                write!(f, "Invalid character `{}`", chr)
             }
             MachinaErrorKind::InvalidInstruction(ins) => {
                 write!(f, "Invalid instruction `{}`", ins)
             }
-            MachinaErrorKind::Expected(token, found) => {
-                write!(f, "Expected {}, but found {}", token, found)
+            MachinaErrorKind::TargetNotFound(label) => {
+                write!(f, "Target with label `{}` not found", label)
+            }
+            MachinaErrorKind::FunctionNotFound(function) => {
+                write!(f, "Function with name `{}` not found", function)
+            }
+            MachinaErrorKind::InvalidRegister(register) => {
+                write!(f, "Invalid register `%{}`", register)
             }
         }
     }

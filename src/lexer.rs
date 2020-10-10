@@ -273,7 +273,7 @@ impl<'s> Lexer<'s> {
         self.line
     }
 
-    pub fn value(&mut self) -> Option<String> {
+    pub fn take_value(&mut self) -> Option<String> {
         self.value.take()
     }
 }
@@ -402,7 +402,7 @@ mod tests {
     use super::*;
 
     fn next_token(lexer: &mut Lexer) -> (Token, Option<String>) {
-        (lexer.next().unwrap().unwrap(), lexer.value())
+        (lexer.next().unwrap().unwrap(), lexer.take_value())
     }
 
     #[test]

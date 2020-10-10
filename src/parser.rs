@@ -6,6 +6,9 @@ use crate::{
         Module,
         Function,
         Constant,
+        Operand,
+        Instruction,
+        Register,
     },
     error:: {
         MachinaError,
@@ -23,10 +26,6 @@ type ParserResult<T> = Result<T, MachinaError>;
 pub struct Parser<'a> {
     lexer: Lexer<'a>,
     token: Token,
-    functions: Vec<Function>,
-    constants: Vec<Constant>,
-    function_indexes: HashMap<String, usize>,
-    constant_indexes: HashMap<String, usize>,
 }
 
 impl<'a> Parser<'a> {
@@ -34,64 +33,168 @@ impl<'a> Parser<'a> {
         Parser {
             lexer: Lexer::new(source),
             token: Token::EOF,
-            functions: vec![],
-            constants: vec![],
-            function_indexes: HashMap::new(),
-            constant_indexes: HashMap::new(),
         }
     }
 
-    pub fn parse(mut self) -> Result<Module, MachinaError> {
-        let _ = self.next();
+    pub fn parse(mut self) -> ParserResult<Module> {
+        self.next()?;
+
+        let mut functions = vec![];
 
         while !self.token_is(Token::EOF) {
-            let (name, function) = self.parse_function()?;
-            let index = self.functions.len();
-            self.functions.push(function);
-            self.function_indexes.insert(name, index);
+            functions.push(self.parse_function()?);
         }
 
-        Ok(Module {
-            constants: self.constants,
-            functions: self.functions,
-        })
+        self.build(functions)
     }
 
-    fn parse_function(&mut self) -> ParserResult<(String, Function)> {
+    pub fn build(mut self, functions: Vec<PreFunction>) -> ParserResult<Module> {
 
-        let name = self.eat_value(Token::Function)?;
+        let indexes = functions.iter()
+            .enumerate()
+            .map(|(idx, function)| {
+                (function.name.clone(), idx)
+            })
+            .collect::<HashMap<_,_>>();
 
-        let mut blocks = HashMap::new();
+        let mut constants = vec![];
+
+        let functions = functions
+            .into_iter()
+            .map(|function| {
+                self.build_function(function, &indexes, &mut constants)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(Module { functions, constants })
+    }
+
+    fn build_function(&mut self, function: PreFunction, functions: &HashMap<String, usize>, constants: &mut Vec<Constant>) 
+        -> ParserResult<Function>
+    {
+        let mut labels = HashMap::new();
         let mut count = 0;
 
-        let initial_block = self.parse_block(0)?;
-        count += initial_block.instructions.len();
-        blocks.insert("<main>".into(), initial_block);
-        
-        while self.token_is(Token::Label) {
-            let label = self.eat_value(Token::Label)?;
-            let block = self.parse_block(count)?;
-            count = count + block.instructions.len();
-            
-            blocks.insert(label, block);
+        for block in function.blocks.iter() {
+            labels.insert(block.label.clone(), count);
+            count += block.instructions.len();
         }
 
-        Ok((name, Function { locals: 0, instructions: vec![] }))
+        let mut registers = HashMap::new();
+
+        let instructions = function.blocks
+            .into_iter()
+            .map(|b| b.instructions)
+            .flatten()
+            .map(|instruction| {
+                self.build_instruction(instruction, &labels, &mut registers, functions, constants)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(Function { locals: registers.len() as u8, instructions })
     }
 
-    fn parse_block(&mut self, line: usize) -> ParserResult<Block> {
+    fn build_instruction(&mut self, function: PreInstruction, labels: &HashMap<String, usize>, registers: &mut HashMap<Register, Register>, functions: &HashMap<String, usize>, constants: &mut Vec<Constant>) 
+        -> ParserResult<Instruction>
+    {
+        let mut operands = [Operand::None; 4];
+
+        for (i, operand) in function.operands.into_iter().enumerate() {
+            operands[i] = match operand {
+                PreOperand::String(string) => {
+                    self.define_constant(Constant::String(string), constants)
+                }
+                PreOperand::Number(number) => {
+                    let num = number.parse::<f64>().unwrap();
+                    if num <= f32::MAX as f64 {
+                        Operand::Immediate((num as f32) as i32)
+                    } else {
+                        self.define_constant(Constant::Number(num.into()), constants)
+                    }
+                }
+                PreOperand::Register(register) => {
+                    let register = register.parse::<u16>().ok()
+                        .ok_or({
+                            MachinaError {
+                                kind: MachinaErrorKind::InvalidRegister(register),
+                                line:  function.line
+                            }
+                        })?;
+
+                    self.define_register(register, registers)
+                }
+                PreOperand::Function(name) => {
+                    let function = functions.get(&name)
+                        .ok_or({
+                            MachinaError {
+                                kind: MachinaErrorKind::FunctionNotFound(name),
+                                line:  function.line
+                            }
+                        })?;
+                    
+                    Operand::Function(*function as u16)
+                }
+                PreOperand::Label(label) => {
+                    let position = labels.get(&label)
+                        .ok_or({
+                            MachinaError {
+                                kind: MachinaErrorKind::TargetNotFound(label),
+                                line:  function.line
+                            }
+                        })?;
+                    
+                    Operand::Position(*position as u16)
+                }
+            };
+        }
+
+        Ok(Instruction { opcode: function.opcode, operands })
+    }
+
+    fn define_constant(&self, constant: Constant, constants: &mut Vec<Constant>) -> Operand {
+        let index = constants.len();
+        constants.push(constant);
+
+        Operand::Constant(index as u16)
+    }
+
+    fn define_register(&self, register: Register, registers: &mut HashMap<Register, Register>) -> Operand {
+        let index = registers.len() as Register;
+        let register = registers.entry(register).or_insert(index);
+        
+        Operand::Register(*register)
+    }
+
+    fn parse_function(&mut self) -> ParserResult<PreFunction> {
+
+        let name = self.take(Token::Function)?;
+
+        let mut blocks = vec![];
+
+        blocks.push(self.parse_block("<main>".into())?);
+        
+        while self.token_is(Token::Label) {
+            let label = self.take(Token::Label)?;
+            let block = self.parse_block(label)?;
+            blocks.push(block);
+        }
+
+        Ok(PreFunction { name, blocks })
+    }
+
+    fn parse_block(&mut self, label: String) -> ParserResult<Block> {
         let mut instructions = vec![];
 
         while !self.token_is(Token::Label)
           &&  !self.token_is(Token::Function)
           &&  !self.token_is(Token::EOF) {
-            instructions.push(self.parse_pre_instruction()?);
+            instructions.push(self.parse_instruction()?);
         }
 
-        Ok(Block { line, instructions })
+        Ok(Block { label, instructions })
     }
 
-    fn parse_pre_instruction(&mut self) -> ParserResult<PreInstruction> {
+    fn parse_instruction(&mut self) -> ParserResult<PreInstruction> {
         match self.token {
             Token::Call => self.parse_call_instruction(),
             Token::Move => self.parse_move_instruction(),
@@ -137,24 +240,28 @@ impl<'a> Parser<'a> {
         self.eat(Token::Call)?;
 
         let operands = vec![
-            self.parse_pre_operand(Token::Function, true)?,
-            self.parse_pre_operand(Token::Register, true)?,
-            self.parse_pre_operand(Token::Register, true)?,
-            self.parse_pre_operand(Token::Register, false)?,
+            self.parse_operand(Token::Function, true)?,
+            self.parse_operand(Token::Register, true)?,
+            self.parse_operand(Token::Register, true)?,
+            self.parse_operand(Token::Register, false)?,
         ];
 
-        Ok(PreInstruction { opcode: OpCode::Call, operands })
+        let line = self.line();
+
+        Ok(PreInstruction { opcode: OpCode::Call, line, operands })
     }
 
     fn parse_move_instruction(&mut self) -> ParserResult<PreInstruction> {
         self.eat(Token::Move)?;
 
         let operands = vec![
-            self.parse_pre_operand(Token::Register, true)?,
-            self.parse_pre_operand(Token::Operand, false)?,
+            self.parse_operand(Token::Register, true)?,
+            self.parse_operand(Token::Operand, false)?,
         ];
 
-        Ok(PreInstruction { opcode: OpCode::Move, operands })
+        let line = self.line();
+
+        Ok(PreInstruction { opcode: OpCode::Move, line, operands })
     }
 
     fn parse_jump_instructions(&mut self) -> ParserResult<PreInstruction> {
@@ -176,14 +283,14 @@ impl<'a> Parser<'a> {
         self.next()?;
 
         let mut operands = vec![
-            self.parse_pre_operand(Token::Label, true)?
+            self.parse_operand(Token::Label, true)?
         ];
 
         match opcode {
             OpCode::Jmp => {},
             OpCode::Jt
           | OpCode::Jf => {
-                operands.push(self.parse_pre_operand(Token::Register, true)?);
+                operands.push(self.parse_operand(Token::Register, true)?);
             }
             OpCode::JLt
           | OpCode::JLe
@@ -191,13 +298,15 @@ impl<'a> Parser<'a> {
           | OpCode::JGe
           | OpCode::JEq
           | OpCode::JNe => {
-                operands.push(self.parse_pre_operand(Token::Register, true)?);
-                operands.push(self.parse_pre_operand(Token::Operand, false)?);
+                operands.push(self.parse_operand(Token::Register, true)?);
+                operands.push(self.parse_operand(Token::Operand, false)?);
           }
             _ => unreachable!()
         };
 
-        Ok(PreInstruction { opcode, operands })
+        let line = self.line();
+
+        Ok(PreInstruction { opcode, line, operands })
     }
 
     fn parse_unary_instructions(&mut self) -> ParserResult<PreInstruction> {
@@ -213,10 +322,12 @@ impl<'a> Parser<'a> {
         self.next()?;
 
         let operands = vec![
-            self.parse_pre_operand(Token::Register, false)?,
+            self.parse_operand(Token::Register, false)?,
         ];
 
-        Ok(PreInstruction { opcode, operands })
+        let line = self.line();
+
+        Ok(PreInstruction { opcode, line, operands })
     }
 
     fn parse_binary_instructions(&mut self) -> ParserResult<PreInstruction> {
@@ -245,14 +356,16 @@ impl<'a> Parser<'a> {
         self.next()?;
 
         let operands = vec![
-            self.parse_pre_operand(Token::Register, true)?,
-            self.parse_pre_operand(Token::Operand, false)?,
+            self.parse_operand(Token::Register, true)?,
+            self.parse_operand(Token::Operand, false)?,
         ];
 
-        Ok(PreInstruction { opcode, operands })
+        let line = self.line();
+
+        Ok(PreInstruction { opcode, line, operands })
     }
 
-    fn parse_pre_operand(&mut self, kind: Token, eat_comma: bool) -> ParserResult<PreOperand> {
+    fn parse_operand(&mut self, kind: Token, eat_comma: bool) -> ParserResult<PreOperand> {
         if kind == Token::Operand {
             self.expect_one_of(&[Token::String, Token::Number, Token::Register])?;
         } else {
@@ -260,11 +373,11 @@ impl<'a> Parser<'a> {
         }
 
         let operand = match self.token {
-            Token::String => PreOperand::String(self.eat_value(Token::String)?),
-            Token::Number => PreOperand::Number(self.eat_value(Token::Number)?),
-            Token::Register => PreOperand::Register(self.eat_value(Token::Register)?),
-            Token::Function => PreOperand::Function(self.eat_value(Token::Function)?),
-            Token::Label => PreOperand::Label(self.eat_value(Token::Label)?),
+            Token::String => PreOperand::String(self.take(Token::String)?),
+            Token::Number => PreOperand::Number(self.take(Token::Number)?),
+            Token::Register => PreOperand::Register(self.take(Token::Register)?),
+            Token::Function => PreOperand::Function(self.take(Token::Function)?),
+            Token::Label => PreOperand::Label(self.take(Token::Label)?),
             _ => {
                 return Err(
                     self.unexpected(&[Token::String, Token::Number, Token::Register, Token::Function, Token::Label])
@@ -296,9 +409,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn eat_value(&mut self, tkn: Token) -> ParserResult<String> {
+    fn take(&mut self, tkn: Token) -> ParserResult<String> {
         let value = if self.token == tkn {
-            self.lexer.value().unwrap()
+            self.lexer.take_value().unwrap()
         } else {
             return Err(self.unexpected(&[tkn]));
         };
@@ -306,6 +419,10 @@ impl<'a> Parser<'a> {
         self.next()?;
 
         Ok(value)
+    }
+
+    fn line(&self) -> usize {
+        self.lexer.line()
     }
 
     fn token_is(&self, tkn: Token) -> bool {
@@ -323,25 +440,32 @@ impl<'a> Parser<'a> {
     fn unexpected(&self, tokens: &[Token]) -> MachinaError {
         let expected = tokens
             .iter()
-            .map(|t| format!("`{}`", t)).collect::<Vec<String>>().join(", ");
+            .map(|t| format!("`{}`", t)).collect::<Vec<_>>().join(", ");
 
         MachinaError {
-            kind: MachinaErrorKind::Expected(format!("one of {}", expected), format!("`{}`", self.token)),
-            line: self.lexer.line(),
+            kind: MachinaErrorKind::Expected(format!("{}", expected), format!("{}", self.token)),
+            line: self.line()
         }
     }
 }
 
 
 #[derive(Debug, Clone)]
+pub struct PreFunction {
+    name: String,
+    blocks: Vec<Block>
+}
+
+#[derive(Debug, Clone)]
 struct Block {
-    line: usize,
+    label: String,
     instructions: Vec<PreInstruction>,
 }
 
 #[derive(Debug, Clone)]
 pub struct PreInstruction {
     pub opcode: OpCode,
+    pub line: usize,
     pub operands: Vec<PreOperand>,
 }
 
