@@ -7,3 +7,4 @@ pub mod parser;
 pub mod lexer;
 pub mod machina;
 pub mod value;
+pub mod object;

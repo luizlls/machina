@@ -3,7 +3,6 @@ use std::fs;
 use machina::{
     bytecode::{
         Module,
-        Function,
     },
     machina::{
         Environment,
@@ -46,5 +45,5 @@ fn eval(module: Module) {
         functions,
     };
 
-    Machina::new(&environment).call(0, 0, 0);
+    Machina::new(&environment).call(0, 0, 0, 0);
 }

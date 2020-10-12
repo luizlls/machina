@@ -5,6 +5,7 @@ use crate::{
         Operand,
         Register,
         Function,
+        Instruction,
     },
 };
 
@@ -48,7 +49,7 @@ impl<'a> Machina<'a> {
         }
     }
 
-    pub fn call(&mut self, index: usize, first: Register, last: Register) -> Value {
+    pub fn call(&mut self, index: usize, ret: Register, first: Register, last: Register) {
 
         let function = self.environment.get_function(index);
 
@@ -64,15 +65,13 @@ impl<'a> Machina<'a> {
         let _rp = self.rp;
         self.bp = self.rp;
 
-        let value = self.eval(function);
+        self.eval(function, ret);
 
         self.rp = _rp;
         self.bp = _bp;
-
-        value
     }
-    
-    fn eval(&mut self, function: &Function) -> Value {
+
+    fn eval(&mut self, function: &Function, ret: Register) {
         self.alloc(function.locals as usize);
 
         let mut ip  = 0;
@@ -83,168 +82,319 @@ impl<'a> Machina<'a> {
 
             match instruction.opcode {
                 OpCode::Move => {
-                    self.set(instruction.register(0), self.get(instruction.get(1)));
+                    self.eval_move(&instruction)
                 }
                 OpCode::Call => {
-                    let first = instruction.register(2);
-                    let last  = instruction.register(3);
-                    if first > last {
-                        panic!("Invalid register range for CALL instruction")
-                    }
-
-                    let val = self.call(instruction.function(0) as usize, first, last);
-
-                    self.set(instruction.register(1), val);
+                    self.eval_call(&instruction)
                 }
                 OpCode::Jmp => {
-                    ip = instruction.position(0) as usize;
+                    self.eval_jmp(&instruction, &mut ip)
                 }
                 OpCode::Jt => {
-                    let val = self.get(instruction.get(1));
-                    if val.is_true() {
-                        ip = instruction.position(0) as usize;
-                    }
+                    self.eval_jt(&instruction, &mut ip)
                 }
                 OpCode::Jf => {
-                    let val = self.get(instruction.get(1));
-                    if val.is_false() {
-                        ip = instruction.position(0) as usize;
-                    }
+                    self.eval_jf(&instruction, &mut ip)
                 }
                 OpCode::JLt => {
-                    let a = self.get(instruction.get(1));
-                    let b = self.get(instruction.get(2));
-                    if a.get_int() < b.get_int() {
-                        ip = instruction.position(0) as usize;
-                    }
+                    self.eval_jlt(&instruction, &mut ip)
                 }
                 OpCode::JLe => {
-                    let a = self.get(instruction.get(1));
-                    let b = self.get(instruction.get(2));
-                    if a.get_int() <= b.get_int() {
-                        ip = instruction.position(0) as usize;
-                    }
+                    self.eval_jle(&instruction, &mut ip)
                 }
                 OpCode::JGt => {
-                    let a = self.get(instruction.get(1));
-                    let b = self.get(instruction.get(2));
-                    if a.get_int() > b.get_int() {
-                        ip = instruction.position(0) as usize;
-                    }
+                    self.eval_jgt(&instruction, &mut ip)
                 }
                 OpCode::JGe => {
-                    let a = self.get(instruction.get(1));
-                    let b = self.get(instruction.get(2));
-                    if a.get_int() >= b.get_int() {
-                        ip = instruction.position(0) as usize;
-                    }
+                    self.eval_jge(&instruction, &mut ip)
                 }
                 OpCode::JEq => {
-                    let a = self.get(instruction.get(1));
-                    let b = self.get(instruction.get(2));
-                    if a.get_int() == b.get_int() {
-                        ip = instruction.position(0) as usize;
-                    }
+                    self.eval_jeq(&instruction, &mut ip)
                 }
                 OpCode::JNe => {
-                    let a = self.get(instruction.get(1));
-                    let b = self.get(instruction.get(2));
-                    if a.get_int() != b.get_int() {
-                        ip = instruction.position(0) as usize;
-                    }
+                    self.eval_jne(&instruction, &mut ip)
                 }
                 OpCode::Lt => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() < b.get_int()));
+                    self.eval_lt(&instruction)
                 }
                 OpCode::Le => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() <= b.get_int()));
+                    self.eval_le(&instruction)
                 }
                 OpCode::Gt => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() > b.get_int()));
+                    self.eval_gt(&instruction)
                 }
                 OpCode::Ge => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() >= b.get_int()));
+                    self.eval_ge(&instruction)
                 }
                 OpCode::Eq => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() == b.get_int()));
+                    self.eval_eq(&instruction)
                 }
                 OpCode::Ne => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() != b.get_int()));
+                    self.eval_ne(&instruction)
                 }
                 OpCode::Add => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() + b.get_int()));
+                    self.eval_add(&instruction)
                 }
                 OpCode::Sub => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() - b.get_int()));
+                    self.eval_sub(&instruction)
                 }
                 OpCode::Mul => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() * b.get_int()));
+                    self.eval_mul(&instruction)
                 }
                 OpCode::Div => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() / b.get_int()));
+                    self.eval_div(&instruction)
                 }
                 OpCode::Mod => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() % b.get_int()));
+                    self.eval_mod(&instruction)
                 }
                 OpCode::And => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() & b.get_int()));
+                    self.eval_and(&instruction)
                 }
                 OpCode::Or => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() | b.get_int()));
+                    self.eval_or(&instruction)
                 }
                 OpCode::Xor => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() ^ b.get_int()));
+                    self.eval_xor(&instruction)
                 }
                 OpCode::Shl => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() << b.get_int()));
+                    self.eval_shl(&instruction)
                 }
                 OpCode::Shr => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() >> b.get_int()));
+                    self.eval_shr(&instruction)
                 }
                 OpCode::Not => {
-                    let a = self.get(instruction.get(0));
-                    self.set(instruction.register(0), Value::from(!a.get_int()));
+                    self.eval_not(&instruction)
                 }
                 OpCode::Ret => {
-                    return self.get(instruction.get(0))
+                    self.eval_ret(&instruction, ret);
+                    break;
                 }
                 OpCode::Write => {
-                    println!("{:#?}", self.get(instruction.get(0)));
+                    self.eval_write(&instruction)
                 }
             }
         }
+    }
+
+    #[inline(always)]
+    fn eval_move(&mut self, instruction: &Instruction) {
+        self.set(instruction.register(0), self.get(instruction.get(1)));
+    }
+
+    #[inline(always)]
+    fn eval_call(&mut self, instruction: &Instruction) {
+        let first = instruction.register(2);
+        let last  = instruction.register(3);
+        if first > last {
+            panic!("Invalid register range for CALL instruction")
+        }
+
+        let ret = instruction.register(1);
+
+        self.call(instruction.function(0) as usize, ret, first, last);
+    }
+
+    #[inline(always)]
+    fn eval_jmp(&mut self, instruction: &Instruction, ip: &mut usize) {
+        *ip = instruction.position(0) as usize;
+    }
+
+    #[inline(always)]
+    fn eval_jt(&mut self, instruction: &Instruction, ip: &mut usize) {
+        let val = self.get(instruction.get(1));
+        if val.is_true() {
+            *ip = instruction.position(0) as usize;
+        }
+    }
+
+    #[inline(always)]
+    fn eval_jf(&mut self, instruction: &Instruction, ip: &mut usize) {
+        let val = self.get(instruction.get(1));
+        if val.is_false() {
+            *ip = instruction.position(0) as usize;
+        }
+    }
+
+    #[inline(always)]
+    fn eval_jlt(&mut self, instruction: &Instruction, ip: &mut usize) {
+        let a = self.get(instruction.get(1));
+        let b = self.get(instruction.get(2));
+        if a.get_int() < b.get_int() {
+            *ip = instruction.position(0) as usize;
+        }
+    }
+
+    #[inline(always)]
+    fn eval_jle(&mut self, instruction: &Instruction, ip: &mut usize) {
+        let a = self.get(instruction.get(1));
+        let b = self.get(instruction.get(2));
+        if a.get_int() <= b.get_int() {
+            *ip = instruction.position(0) as usize;
+        }
+    }
+
+    #[inline(always)]
+    fn eval_jgt(&mut self, instruction: &Instruction, ip: &mut usize) {
+        let a = self.get(instruction.get(1));
+        let b = self.get(instruction.get(2));
+        if a.get_int() > b.get_int() {
+            *ip = instruction.position(0) as usize;
+        }
+    }
+
+    #[inline(always)]
+    fn eval_jge(&mut self, instruction: &Instruction, ip: &mut usize) {
+        let a = self.get(instruction.get(1));
+        let b = self.get(instruction.get(2));
+        if a.get_int() >= b.get_int() {
+            *ip = instruction.position(0) as usize;
+        }
+    }
+
+    #[inline(always)]
+    fn eval_jeq(&mut self, instruction: &Instruction, ip: &mut usize) {
+        let a = self.get(instruction.get(1));
+        let b = self.get(instruction.get(2));
+        if a.get_int() == b.get_int() {
+            *ip = instruction.position(0) as usize;
+        }
+    }
+
+    #[inline(always)]
+    fn eval_jne(&mut self, instruction: &Instruction, ip: &mut usize) {
+        let a = self.get(instruction.get(1));
+        let b = self.get(instruction.get(2));
+        if a.get_int() != b.get_int() {
+            *ip = instruction.position(0) as usize;
+        }
+    }
+
+    #[inline(always)]
+    fn eval_lt(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.get(0));
+        let b = self.get(instruction.get(1));
+        self.set(instruction.register(0), Value::from(a.get_int() < b.get_int()));
+    }
+
+    #[inline(always)]
+    fn eval_le(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.get(0));
+        let b = self.get(instruction.get(1));
+        self.set(instruction.register(0), Value::from(a.get_int() <= b.get_int()));
+    }
+
+    #[inline(always)]
+    fn eval_gt(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.get(0));
+        let b = self.get(instruction.get(1));
+        self.set(instruction.register(0), Value::from(a.get_int() > b.get_int()));
+    }
+
+    #[inline(always)]
+    fn eval_ge(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.get(0));
+        let b = self.get(instruction.get(1));
+        self.set(instruction.register(0), Value::from(a.get_int() >= b.get_int()));
+    }
+
+    #[inline(always)]
+    fn eval_eq(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.get(0));
+        let b = self.get(instruction.get(1));
+        self.set(instruction.register(0), Value::from(a.get_int() == b.get_int()));
+    }
+
+    #[inline(always)]
+    fn eval_ne(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.get(0));
+        let b = self.get(instruction.get(1));
+        self.set(instruction.register(0), Value::from(a.get_int() != b.get_int()));
+    }
+
+    #[inline(always)]
+    fn eval_add(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.get(0));
+        let b = self.get(instruction.get(1));
+        self.set(instruction.register(0), Value::from(a.get_int() + b.get_int()));
+    }
+
+    #[inline(always)]
+    fn eval_sub(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.get(0));
+        let b = self.get(instruction.get(1));
+        self.set(instruction.register(0), Value::from(a.get_int() - b.get_int()));
+    }
+
+    #[inline(always)]
+    fn eval_mul(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.get(0));
+        let b = self.get(instruction.get(1));
+        self.set(instruction.register(0), Value::from(a.get_int() * b.get_int()));
+    }
+
+    #[inline(always)]
+    fn eval_div(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.get(0));
+        let b = self.get(instruction.get(1));
+        self.set(instruction.register(0), Value::from(a.get_int() / b.get_int()));
+    }
+
+    #[inline(always)]
+    fn eval_mod(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.get(0));
+        let b = self.get(instruction.get(1));
+        self.set(instruction.register(0), Value::from(a.get_int() % b.get_int()));
+    }
+
+    #[inline(always)]
+    fn eval_and(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.get(0));
+        let b = self.get(instruction.get(1));
+        self.set(instruction.register(0), Value::from(a.get_int() & b.get_int()));
+    }
+
+    #[inline(always)]
+    fn eval_or(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.get(0));
+        let b = self.get(instruction.get(1));
+        self.set(instruction.register(0), Value::from(a.get_int() | b.get_int()));
+    }
+
+    #[inline(always)]
+    fn eval_xor(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.get(0));
+        let b = self.get(instruction.get(1));
+        self.set(instruction.register(0), Value::from(a.get_int() ^ b.get_int()));
+    }
+
+    #[inline(always)]
+    fn eval_shl(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.get(0));
+        let b = self.get(instruction.get(1));
+        self.set(instruction.register(0), Value::from(a.get_int() << b.get_int()));
+    }
+
+    #[inline(always)]
+    fn eval_shr(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.get(0));
+        let b = self.get(instruction.get(1));
+        self.set(instruction.register(0), Value::from(a.get_int() >> b.get_int()));
+    }
+
+    #[inline(always)]
+    fn eval_not(&mut self, instruction: &Instruction) {
+        let a = self.get(instruction.get(0));
+        self.set(instruction.register(0), Value::from(!a.get_int()));
+    }
+
+    #[inline(always)]
+    fn eval_ret(&mut self, instruction: &Instruction, ret: Register) {
+        self.set(ret, self.get(instruction.get(0)));
+    }
+
+    #[inline(always)]
+    fn eval_write(&mut self, instruction: &Instruction) {
+        println!("{:#?}", self.get(instruction.get(0)));
     }
 
     #[inline(always)]

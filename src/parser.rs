@@ -69,7 +69,7 @@ impl<'a> Parser<'a> {
         Ok(Module { functions, constants })
     }
 
-    fn build_function(&mut self, function: PreFunction, functions: &HashMap<String, usize>, constants: &mut Vec<Constant>) 
+    fn build_function(&mut self, function: PreFunction, functions: &HashMap<String, usize>, constants: &mut Vec<Constant>)
         -> ParserResult<Function>
     {
         let mut labels = HashMap::new();
@@ -94,7 +94,7 @@ impl<'a> Parser<'a> {
         Ok(Function { locals: registers.len() as u8, instructions })
     }
 
-    fn build_instruction(&mut self, function: PreInstruction, labels: &HashMap<String, usize>, registers: &mut HashMap<Register, Register>, functions: &HashMap<String, usize>, constants: &mut Vec<Constant>) 
+    fn build_instruction(&mut self, function: PreInstruction, labels: &HashMap<String, usize>, registers: &mut HashMap<Register, Register>, functions: &HashMap<String, usize>, constants: &mut Vec<Constant>)
         -> ParserResult<Instruction>
     {
         let mut operands = [Operand::None; 4];
@@ -131,7 +131,7 @@ impl<'a> Parser<'a> {
                                 line:  function.line
                             }
                         })?;
-                    
+
                     Operand::Function(*function as u16)
                 }
                 PreOperand::Label(label) => {
@@ -142,7 +142,7 @@ impl<'a> Parser<'a> {
                                 line:  function.line
                             }
                         })?;
-                    
+
                     Operand::Position(*position as u16)
                 }
             };
@@ -161,7 +161,7 @@ impl<'a> Parser<'a> {
     fn define_register(&self, register: Register, registers: &mut HashMap<Register, Register>) -> Operand {
         let index = registers.len() as Register;
         let register = registers.entry(register).or_insert(index);
-        
+
         Operand::Register(*register)
     }
 
@@ -172,7 +172,7 @@ impl<'a> Parser<'a> {
         let mut blocks = vec![];
 
         blocks.push(self.parse_block("<main>".into())?);
-        
+
         while self.token_is(Token::Label) {
             let label = self.take(Token::Label)?;
             let block = self.parse_block(label)?;
@@ -436,7 +436,7 @@ impl<'a> Parser<'a> {
             Err(self.unexpected(tokens))
         }
     }
-    
+
     fn unexpected(&self, tokens: &[Token]) -> MachinaError {
         let expected = tokens
             .iter()
