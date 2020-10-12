@@ -1,26 +1,51 @@
 use crate::{
-    value::Value,
     bytecode::{
+        Constant,
+        Function,
         OpCode,
         Operand,
-        Register,
-        Function,
+        Register
     },
+    value::Value
 };
 
 use std::fmt::Debug;
 
 const INITIAL_REG_SIZE: usize = 16;
 
+
+macro_rules! as_expr {
+    ($e: expr) => { $e }
+}
+
+macro_rules! numeric_op {
+    ($lhs: expr, $rhs: expr, $op:tt) => {
+        if $lhs.is_num() || $rhs.is_num() {
+            Value::from(as_expr!($lhs.as_num() $op $rhs.as_num()))
+        } else {
+            Value::from(as_expr!($lhs.as_int() $op $rhs.as_int()))
+        }
+    };
+}
+
+macro_rules! integer_op {
+    ($lhs: expr, $rhs: expr, $op:tt) => {
+        Value::from(as_expr!($lhs.as_int() $op $rhs.as_int()))
+    };
+}
+
+
 #[derive(Debug)]
 pub struct Environment {
     pub functions: Vec<Function>,
+    pub constants: Vec<Constant>,
 }
 
 impl Environment {
 
     pub fn new() -> Environment {
         Environment {
+            constants: vec![],
             functions: vec![],
         }
     }
@@ -71,7 +96,7 @@ impl<'a> Machina<'a> {
 
         value
     }
-    
+
     fn eval(&mut self, function: &Function) -> Value {
         self.alloc(function.locals as usize);
 
@@ -156,92 +181,96 @@ impl<'a> Machina<'a> {
                 OpCode::Lt => {
                     let a = self.get(instruction.get(0));
                     let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() < b.get_int()));
+                    self.set(instruction.register(0), Value::from(a.as_int() < b.as_int()));
                 }
                 OpCode::Le => {
                     let a = self.get(instruction.get(0));
                     let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() <= b.get_int()));
+                    self.set(instruction.register(0), Value::from(a.as_int() <= b.as_int()));
                 }
                 OpCode::Gt => {
                     let a = self.get(instruction.get(0));
                     let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() > b.get_int()));
+                    self.set(instruction.register(0), Value::from(a.as_int() > b.as_int()));
                 }
                 OpCode::Ge => {
                     let a = self.get(instruction.get(0));
                     let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() >= b.get_int()));
+                    self.set(instruction.register(0), Value::from(a.as_int() >= b.as_int()));
                 }
                 OpCode::Eq => {
                     let a = self.get(instruction.get(0));
                     let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() == b.get_int()));
+                    self.set(instruction.register(0), Value::from(a == b));
                 }
                 OpCode::Ne => {
                     let a = self.get(instruction.get(0));
                     let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() != b.get_int()));
+                    self.set(instruction.register(0), Value::from(a != b));
                 }
                 OpCode::Add => {
                     let a = self.get(instruction.get(0));
                     let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() + b.get_int()));
+                    self.set(instruction.register(0), numeric_op!(a, b, +));
                 }
                 OpCode::Sub => {
                     let a = self.get(instruction.get(0));
                     let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() - b.get_int()));
+                    self.set(instruction.register(0), numeric_op!(a, b, -));
                 }
                 OpCode::Mul => {
                     let a = self.get(instruction.get(0));
                     let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() * b.get_int()));
+                    self.set(instruction.register(0), numeric_op!(a, b, *));
                 }
                 OpCode::Div => {
                     let a = self.get(instruction.get(0));
                     let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() / b.get_int()));
+                    self.set(instruction.register(0), numeric_op!(a, b, /));
                 }
                 OpCode::Mod => {
                     let a = self.get(instruction.get(0));
                     let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() % b.get_int()));
+                    self.set(instruction.register(0), integer_op!(a, b, %));
                 }
                 OpCode::And => {
                     let a = self.get(instruction.get(0));
                     let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() & b.get_int()));
+                    self.set(instruction.register(0), integer_op!(a, b, &));
                 }
                 OpCode::Or => {
                     let a = self.get(instruction.get(0));
                     let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() | b.get_int()));
+                    self.set(instruction.register(0), integer_op!(a, b, |));
                 }
                 OpCode::Xor => {
                     let a = self.get(instruction.get(0));
                     let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() ^ b.get_int()));
+                    self.set(instruction.register(0), integer_op!(a, b, ^));
                 }
                 OpCode::Shl => {
                     let a = self.get(instruction.get(0));
                     let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() << b.get_int()));
+                    self.set(instruction.register(0), integer_op!(a, b, <<));
                 }
                 OpCode::Shr => {
                     let a = self.get(instruction.get(0));
                     let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.get_int() >> b.get_int()));
+                    self.set(instruction.register(0), integer_op!(a, b, >>));
                 }
                 OpCode::Not => {
                     let a = self.get(instruction.get(0));
-                    self.set(instruction.register(0), Value::from(!a.get_int()));
+                    self.set(instruction.register(0), Value::from(!a.as_int()));
                 }
                 OpCode::Ret => {
-                    return self.get(instruction.get(0))
+                    return self.get(instruction.get(0));
                 }
                 OpCode::Write => {
-                    println!("{:#?}", self.get(instruction.get(0)));
+                    if instruction.get(0) == Operand::None {
+                        println!("\n");
+                    } else {
+                        println!("{}", self.get(instruction.get(0)));
+                    }
                 }
             }
         }
@@ -261,11 +290,13 @@ impl<'a> Machina<'a> {
             Operand::Immediate(imm) => {
                 Value::from(imm)
             }
-            Operand::Constant(_idx) => {
-                todo!()
-            }
-            Operand::Function(idx) => {
-                Value::function(idx as u32)
+            Operand::Constant(idx) => {
+                match self.environment.constants[idx as usize] {
+                    Constant::String(_) => {
+                        todo!()
+                    }
+                    Constant::Number(num) => Value::from(num.value()),
+                }
             }
             _ => Value::null()
         }

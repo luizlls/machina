@@ -3,7 +3,6 @@ use std::fs;
 use machina::{
     bytecode::{
         Module,
-        Function,
     },
     machina::{
         Environment,
@@ -40,10 +39,11 @@ fn exec(source: String) {
 
 fn eval(module: Module) {
 
-    let Module { functions, .. } = module;
+    let Module { functions, constants } = module;
 
     let environment = Environment {
         functions,
+        constants,
     };
 
     Machina::new(&environment).call(0, 0, 0);

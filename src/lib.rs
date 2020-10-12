@@ -1,5 +1,5 @@
-#![feature(box_syntax)]
 #![macro_use]
+#![feature(box_syntax)]
 
 pub mod error;
 pub mod bytecode;

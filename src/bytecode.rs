@@ -151,6 +151,14 @@ impl Into<Number> for f64 {
     }
 }
 
+impl Number {
+
+    #[inline(always)]
+    pub fn value(self) -> f64 {
+        self.0
+    }
+}
+
 
 #[derive(Debug, Clone)]
 pub struct Function {

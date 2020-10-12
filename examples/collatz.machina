@@ -1,0 +1,30 @@
+@entrypoint
+  MOVE      %0, 767
+  CALL      @collatz, %0, %0, %0
+  RET       %0
+
+
+@collatz
+  JEQ       .L1, %0, 1
+
+  WRITE     %0
+
+  MOVE      %1, %0
+  MOD       %1, 2
+  JEQ       .L0, %1, 0
+
+  MUL       %0, 3
+  ADD       %0, 1
+  CALL      @collatz, %0, %0, %0
+  ADD       %0, 1
+  RET       %0
+
+.L0
+  DIV       %0, 2
+  CALL      @collatz, %0, %0, %0
+  ADD       %0, 1
+  RET       %0
+
+.L1
+  MOVE      %0, 0
+  RET       %0

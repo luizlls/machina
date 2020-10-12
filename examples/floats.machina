@@ -1,0 +1,6 @@
+@entrypoint
+  MOVE      %0, 123.5
+  MOVE      %1, 876.5
+  ADD       %0, %1
+  WRITE     %0
+  RET

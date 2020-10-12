@@ -1,13 +1,12 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 const MAX_NUM:  u64 = 0xfff8000000000000;
 const NAN_TAG:  u64 = MAX_NUM;
 const INT_TAG:  u64 = 0xfff9000000000000;
 const CHR_TAG:  u64 = 0xfffa000000000000;
 const PTR_TAG:  u64 = 0xfffb000000000000;
-const FUN_TAG:  u64 = 0xfffc000000000000;
-const TRUE_TAG: u64 = 0xfffd000000000000;
-const FLSE_TAG: u64 = 0xfffe000000000000;
+const TRUE_TAG: u64 = 0xfffc000000000000;
+const FLSE_TAG: u64 = 0xfffd000000000000;
 const NULL_TAG: u64 = 0xffff000000000000;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -56,20 +55,9 @@ impl Value {
     }
 
     #[inline(always)]
-    pub fn is_fun(&self) -> bool {
-        (self.0 & FUN_TAG) == FUN_TAG
-    }
-
-    #[inline(always)]
     pub const fn raw(v: u64) -> Value {
         Value(v)
     }
-
-    #[inline(always)]
-    pub const fn function(fun: u32) -> Value {
-        Value(FUN_TAG | fun as u64)
-    }
-
     pub fn ptr<T>(ptr: *const T) -> Value {
         Value(PTR_TAG | ptr as u64)
     }
@@ -104,6 +92,17 @@ impl Value {
     }
 
     #[inline(always)]
+    pub fn as_num(&self) -> f64 {
+        if self.is_num() {
+            self.get_num_unchecked() as f64
+        } else if self.is_int() {
+            self.get_int_unchecked() as f64
+        } else {
+            panic!("Cannot coerse {:?} into a number", self)
+        }
+    }
+
+    #[inline(always)]
     pub fn get_int(&self) -> i32 {
         assert!(self.is_int());
         (self.0 & !INT_TAG) as i32
@@ -112,6 +111,17 @@ impl Value {
     #[inline(always)]
     pub fn get_int_unchecked(&self) -> i32 {
         (self.0 & !INT_TAG) as i32
+    }
+
+    #[inline(always)]
+    pub fn as_int(&self) -> i64 {
+        if self.is_int() {
+            self.get_int_unchecked() as i64
+        } else if self.is_num() {
+            self.get_num_unchecked() as i64
+        } else {
+            panic!("Cannot coerse {:?} into a int", self)
+        }
     }
 
     #[inline(always)]
@@ -146,29 +156,16 @@ impl Value {
     pub fn get_ptr_mut_unchecked<T>(&self) -> *mut T {
         unsafe { ::std::mem::transmute(self.0 & !PTR_TAG) }
     }
-
-    #[inline(always)]
-    pub fn get_fun(&self) -> u32 {
-        assert!(self.is_fun());
-        (self.0 & !FUN_TAG) as u32
-    }
-
-    #[inline(always)]
-    pub fn get_fun_unchecked(&self) -> u32 {
-        (self.0 & !FUN_TAG) as u32
-    }
 }
 
 impl Debug for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_num() {
-            write!(f, "NUM {}", self.get_num_unchecked())
+            write!(f, "NUM {}", self.get_num())
         } else if self.is_int() {
-            write!(f, "INT {}", self.get_int_unchecked())
+            write!(f, "INT {}", self.get_int())
         } else if self.is_char() {
-            write!(f, "CHAR {}", self.get_char_unchecked())
-        } else if self.is_fun() {
-            write!(f, "FUN {}", self.get_fun_unchecked())
+            write!(f, "CHAR {}", self.get_char())
         } else if self.is_ptr() {
             write!(f, "PTR {}", (self.get_raw() & !PTR_TAG))
         } else if self.is_null() {
@@ -183,30 +180,71 @@ impl Debug for Value {
     }
 }
 
+impl Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.is_num() {
+            write!(f, "{}", self.get_num())
+        } else if self.is_int() {
+            write!(f, "{}", self.get_int())
+        } else if self.is_char() {
+            write!(f, "{}", self.get_char())
+        } else if self.is_ptr() {
+            write!(f, "0x{:08X}", (self.get_raw() & !PTR_TAG))
+        } else if self.is_null() {
+            write!(f, "null")
+        } else if self.is_true() {
+            write!(f, "true")
+        } else if self.is_false() {
+            write!(f, "false")
+        } else {
+            write!(f, "NAN")
+        }
+    }
+}
+
 impl From<bool> for Value {
+
+    #[inline(always)]
     fn from(b: bool) -> Value {
         if b { TRUE } else { FALSE }
     }
 }
 
 impl From<f64> for Value {
+
+    #[inline(always)]
     fn from(f: f64) -> Value {
         Value(f.to_bits())
     }
 }
 
+impl From<i64> for Value {
+
+    #[inline(always)]
+    fn from(i: i64) -> Value {
+        if i <= i32::MAX as i64 {
+            Value::from(i as i32)
+        } else {
+            Value((i as f64).to_bits())
+        }
+    }
+}
+
 impl From<i32> for Value {
+
+    #[inline(always)]
     fn from(i: i32) -> Value {
         Value(INT_TAG | i as u64)
     }
 }
 
 impl From<char> for Value {
+
+    #[inline(always)]
     fn from(c: char) -> Value {
         Value(CHR_TAG | c as u64)
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -294,5 +332,18 @@ mod tests {
         assert_eq!(d, *val);
         assert!(d.is_int());
         assert_eq!(d.get_int_unchecked(), 42);
+    }
+
+    #[test]
+    fn equality() {
+        let a = Value::from(123);
+        let b = Value::from(123);
+        let c = Value::from(321);
+        assert!(a.is_int());
+        assert!(b.is_int());
+        assert!(c.is_int());
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+        assert_ne!(b, c);
     }
 }

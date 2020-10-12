@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::{
     bytecode::{
@@ -30,15 +30,24 @@ pub struct Parser<'a> {
 
 impl<'a> Parser<'a> {
     pub fn new(source: &'a str) -> Parser {
-        Parser {
+        let mut parser = Parser {
             lexer: Lexer::new(source),
             token: Token::EOF,
+        };
+
+        parser.initilize();
+        parser
+    }
+
+    fn initilize(&mut self) {
+        let _ = self.next();
+
+        while self.token_is(Token::EOL) {
+            let _ = self.next();
         }
     }
 
     pub fn parse(mut self) -> ParserResult<Module> {
-        self.next()?;
-
         let mut functions = vec![];
 
         while !self.token_is(Token::EOF) {
@@ -69,7 +78,7 @@ impl<'a> Parser<'a> {
         Ok(Module { functions, constants })
     }
 
-    fn build_function(&mut self, function: PreFunction, functions: &HashMap<String, usize>, constants: &mut Vec<Constant>) 
+    fn build_function(&mut self, function: PreFunction, functions: &HashMap<String, usize>, constants: &mut Vec<Constant>)
         -> ParserResult<Function>
     {
         let mut labels = HashMap::new();
@@ -80,7 +89,7 @@ impl<'a> Parser<'a> {
             count += block.instructions.len();
         }
 
-        let mut registers = HashMap::new();
+        let mut registers = HashSet::new();
 
         let instructions = function.blocks
             .into_iter()
@@ -94,35 +103,42 @@ impl<'a> Parser<'a> {
         Ok(Function { locals: registers.len() as u8, instructions })
     }
 
-    fn build_instruction(&mut self, function: PreInstruction, labels: &HashMap<String, usize>, registers: &mut HashMap<Register, Register>, functions: &HashMap<String, usize>, constants: &mut Vec<Constant>) 
+    fn build_instruction(&mut self, function: PreInstruction, labels: &HashMap<String, usize>, registers: &mut HashSet<Register>, functions: &HashMap<String, usize>, constants: &mut Vec<Constant>)
         -> ParserResult<Instruction>
     {
         let mut operands = [Operand::None; 4];
 
         for (i, operand) in function.operands.into_iter().enumerate() {
             operands[i] = match operand {
+
                 PreOperand::String(string) => {
                     self.define_constant(Constant::String(string), constants)
                 }
+
                 PreOperand::Number(number) => {
                     let num = number.parse::<f64>().unwrap();
-                    if num <= f32::MAX as f64 {
+
+                    if num <= f32::MAX as f64 && (num.trunc() == num) {
                         Operand::Immediate((num as f32) as i32)
                     } else {
                         self.define_constant(Constant::Number(num.into()), constants)
                     }
                 }
+
                 PreOperand::Register(register) => {
                     let register = register.parse::<u16>().ok()
                         .ok_or({
                             MachinaError {
                                 kind: MachinaErrorKind::InvalidRegister(register),
-                                line:  function.line
+                                line: function.line
                             }
                         })?;
 
-                    self.define_register(register, registers)
+                    registers.insert(register);
+
+                    Operand::Register(register)
                 }
+
                 PreOperand::Function(name) => {
                     let function = functions.get(&name)
                         .ok_or({
@@ -131,9 +147,10 @@ impl<'a> Parser<'a> {
                                 line:  function.line
                             }
                         })?;
-                    
+
                     Operand::Function(*function as u16)
                 }
+
                 PreOperand::Label(label) => {
                     let position = labels.get(&label)
                         .ok_or({
@@ -142,9 +159,11 @@ impl<'a> Parser<'a> {
                                 line:  function.line
                             }
                         })?;
-                    
+
                     Operand::Position(*position as u16)
                 }
+
+                PreOperand::None => { continue; }
             };
         }
 
@@ -152,29 +171,23 @@ impl<'a> Parser<'a> {
     }
 
     fn define_constant(&self, constant: Constant, constants: &mut Vec<Constant>) -> Operand {
-        let index = constants.len();
         constants.push(constant);
-
-        Operand::Constant(index as u16)
-    }
-
-    fn define_register(&self, register: Register, registers: &mut HashMap<Register, Register>) -> Operand {
-        let index = registers.len() as Register;
-        let register = registers.entry(register).or_insert(index);
-        
-        Operand::Register(*register)
+        Operand::Constant((constants.len() - 1) as u16)
     }
 
     fn parse_function(&mut self) -> ParserResult<PreFunction> {
 
         let name = self.take(Token::Function)?;
 
+        self.next_line()?;
+
         let mut blocks = vec![];
 
         blocks.push(self.parse_block("<main>".into())?);
-        
+
         while self.token_is(Token::Label) {
             let label = self.take(Token::Label)?;
+            self.next_line()?;
             let block = self.parse_block(label)?;
             blocks.push(block);
         }
@@ -189,6 +202,7 @@ impl<'a> Parser<'a> {
           &&  !self.token_is(Token::Function)
           &&  !self.token_is(Token::EOF) {
             instructions.push(self.parse_instruction()?);
+            self.next_line()?;
         }
 
         Ok(Block { label, instructions })
@@ -240,10 +254,10 @@ impl<'a> Parser<'a> {
         self.eat(Token::Call)?;
 
         let operands = vec![
-            self.parse_operand(Token::Function, true)?,
-            self.parse_operand(Token::Register, true)?,
-            self.parse_operand(Token::Register, true)?,
-            self.parse_operand(Token::Register, false)?,
+            self.parse_operand(Token::Function, false, true)?,
+            self.parse_operand(Token::Register, false, true)?,
+            self.parse_operand(Token::Register, false, true)?,
+            self.parse_operand(Token::Register, false, false)?,
         ];
 
         let line = self.line();
@@ -255,8 +269,8 @@ impl<'a> Parser<'a> {
         self.eat(Token::Move)?;
 
         let operands = vec![
-            self.parse_operand(Token::Register, true)?,
-            self.parse_operand(Token::Operand, false)?,
+            self.parse_operand(Token::Register, false, true)?,
+            self.parse_operand(Token::Operand, false, false)?,
         ];
 
         let line = self.line();
@@ -282,15 +296,16 @@ impl<'a> Parser<'a> {
 
         self.next()?;
 
-        let mut operands = vec![
-            self.parse_operand(Token::Label, true)?
-        ];
+        let mut operands = vec![];
 
         match opcode {
-            OpCode::Jmp => {},
+            OpCode::Jmp => {
+                operands.push(self.parse_operand(Token::Label, false, false)?);
+            },
             OpCode::Jt
           | OpCode::Jf => {
-                operands.push(self.parse_operand(Token::Register, true)?);
+                operands.push(self.parse_operand(Token::Label, false, true)?);
+                operands.push(self.parse_operand(Token::Register, false, true)?);
             }
             OpCode::JLt
           | OpCode::JLe
@@ -298,8 +313,9 @@ impl<'a> Parser<'a> {
           | OpCode::JGe
           | OpCode::JEq
           | OpCode::JNe => {
-                operands.push(self.parse_operand(Token::Register, true)?);
-                operands.push(self.parse_operand(Token::Operand, false)?);
+                operands.push(self.parse_operand(Token::Label, false, true)?);
+                operands.push(self.parse_operand(Token::Register, false, true)?);
+                operands.push(self.parse_operand(Token::Operand, false, false)?);
           }
             _ => unreachable!()
         };
@@ -322,7 +338,7 @@ impl<'a> Parser<'a> {
         self.next()?;
 
         let operands = vec![
-            self.parse_operand(Token::Register, false)?,
+            self.parse_operand(Token::Register, matches!(opcode, OpCode::Ret | OpCode::Write), false)?
         ];
 
         let line = self.line();
@@ -356,8 +372,8 @@ impl<'a> Parser<'a> {
         self.next()?;
 
         let operands = vec![
-            self.parse_operand(Token::Register, true)?,
-            self.parse_operand(Token::Operand, false)?,
+            self.parse_operand(Token::Register, false, true)?,
+            self.parse_operand(Token::Operand, false, false)?,
         ];
 
         let line = self.line();
@@ -365,7 +381,12 @@ impl<'a> Parser<'a> {
         Ok(PreInstruction { opcode, line, operands })
     }
 
-    fn parse_operand(&mut self, kind: Token, eat_comma: bool) -> ParserResult<PreOperand> {
+    fn parse_operand(&mut self, kind: Token, optional: bool, eat_comma: bool) -> ParserResult<PreOperand> {
+
+        if optional && matches!(self.token, Token::EOF | Token::EOL) {
+            return Ok(PreOperand::None);
+        }
+
         if kind == Token::Operand {
             self.expect_one_of(&[Token::String, Token::Number, Token::Register])?;
         } else {
@@ -398,6 +419,13 @@ impl<'a> Parser<'a> {
         } else {
             Token::EOF
         };
+        Ok(())
+    }
+
+    fn next_line(&mut self) -> ParserResult<()> {
+        while self.token_is(Token::EOL) {
+            self.next()?
+        }
         Ok(())
     }
 
@@ -436,11 +464,12 @@ impl<'a> Parser<'a> {
             Err(self.unexpected(tokens))
         }
     }
-    
+
     fn unexpected(&self, tokens: &[Token]) -> MachinaError {
         let expected = tokens
             .iter()
-            .map(|t| format!("`{}`", t)).collect::<Vec<_>>().join(", ");
+            .map(|t| format!("`{}`", t)).collect::<Vec<_>>()
+            .join(" or ");
 
         MachinaError {
             kind: MachinaErrorKind::Expected(format!("{}", expected), format!("{}", self.token)),
@@ -471,6 +500,8 @@ pub struct PreInstruction {
 
 #[derive(Debug, Clone)]
 pub enum PreOperand {
+    None,
+
     String(String),
 
     Number(String),

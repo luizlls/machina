@@ -60,10 +60,18 @@ impl<'s> Lexer<'s> {
             line: 0,
             value: None,
         };
-        lexer.next_char();
-        lexer.next_char();
-        lexer.line = 1;
+        lexer.initialize();
         lexer
+    }
+
+    fn initialize(&mut self) {
+        self.next_char();
+        self.next_char();
+
+        while self.curr == Some('\n') {
+            self.line += 1;
+            self.next_char();
+        }
     }
 
     fn next_token(&mut self) -> LexerResult {
@@ -73,11 +81,6 @@ impl<'s> Lexer<'s> {
               | Some('\t')
               | Some('\r') => {
                     self.space();
-                    continue;
-                }
-                Some('\n') => {
-                    self.line += 1;
-                    self.next_char();
                     continue;
                 }
                 Some('.') => {
@@ -101,6 +104,10 @@ impl<'s> Lexer<'s> {
                 }
                 Some('"') => {
                     self.string()
+                }
+                Some('\n') => {
+                    self.line += 1;
+                    self.single(Token::EOL)
                 }
                 Some(',') => self.single(Token::Comma),
                 Some('(') => self.single(Token::LParen),
@@ -208,7 +215,7 @@ impl<'s> Lexer<'s> {
 
         self.next_char(); // "
 
-        loop {            
+        loop {
             match self.curr {
                 Some('\\') => {
                     match self.next_char() {
@@ -240,7 +247,7 @@ impl<'s> Lexer<'s> {
                         }
                     );
                 }
-                
+
                 _ => {}
             }
 
@@ -341,6 +348,7 @@ pub enum Token {
     Instruction,
 
     // others
+    EOL,
     EOF,
 }
 
@@ -391,6 +399,7 @@ impl fmt::Display for Token {
             Token::Register => write!(f, "register"),
             Token::Operand => write!(f, "operand"),
             Token::Instruction => write!(f, "instruction"),
+            Token::EOL => write!(f, "end of line"),
             Token::EOF => write!(f, "end of file"),
         }
     }
@@ -410,7 +419,7 @@ mod tests {
         let mut lexer = Lexer::new("CALL");
 
         let (call, _) = next_token(&mut lexer);
-        
+
         assert_eq!(call, Token::Call);
     }
 
@@ -521,6 +530,7 @@ mod tests {
     #[test]
     fn lex_complete() {
         let source = r#"
+
             @entrypoint
               MOVE  %0, 1
               MOVE  %1, 2
@@ -538,7 +548,7 @@ mod tests {
             if token == Token::EOF {
                 break;
             }
-            
+
             tokens.push((token, value));
         }
 
@@ -549,20 +559,25 @@ mod tests {
 
         assert_eq!(kinds, vec![
             Token::Function,
+            Token::EOL,
             Token::Move,
             Token::Register,
             Token::Comma,
             Token::Number,
+            Token::EOL,
             Token::Move,
             Token::Register,
             Token::Comma,
             Token::Number,
+            Token::EOL,
             Token::Add,
             Token::Register,
             Token::Comma,
             Token::Register,
+            Token::EOL,
             Token::Ret,
-            Token::Register
+            Token::Register,
+            Token::EOL,
         ]);
     }
 }

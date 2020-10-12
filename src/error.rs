@@ -19,8 +19,8 @@ impl Display for MachinaErrorKind {
             MachinaErrorKind::UnterminatedString => {
                 write!(f, "Unterminated string")
             }
-            MachinaErrorKind::Expected(token, found) => {
-                write!(f, "Expected one of {}, but found `{}`", token, found)
+            MachinaErrorKind::Expected(expected, found) => {
+                write!(f, "Expected {} but found `{}`", expected, found)
             }
             MachinaErrorKind::InvalidCharacter(chr) => {
                 write!(f, "Invalid character `{}`", chr)

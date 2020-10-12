@@ -1,0 +1,37 @@
+; Find the sum of all the multiples of 3 or 5 below N (N = 1000)
+
+@entrypoint
+  MOVE      %0, 1000
+  CALL      @solve, %0, %0, %0
+  WRITE     %0
+  RET
+
+
+; args N = %0
+
+@solve
+  MOVE      %1, 0   ; TOTAL
+  MOVE      %2, 0   ; COUNT
+
+.L0
+  JEQ      .L1, %2, %0
+
+  MOVE      %3, %2
+  MOD       %3, 3
+  JEQ      .L2, %3, 0
+
+  MOVE      %3, %2
+  MOD       %3, 5
+  JEQ      .L2, %3, 0
+
+  JMP       .L3
+
+.L2
+  ADD       %1, %2
+
+.L3
+  ADD       %2, 1
+  JMP      .L0
+
+.L1
+  RET       %1
