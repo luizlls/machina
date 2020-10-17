@@ -10,7 +10,9 @@ pub enum MachinaErrorKind {
     InvalidInstruction(String),
     TargetNotFound(String),
     FunctionNotFound(String),
-    InvalidRegister(String)
+    InvalidRegister(String),
+
+    OutOfMemory,
 }
 
 impl Display for MachinaErrorKind {
@@ -36,6 +38,9 @@ impl Display for MachinaErrorKind {
             }
             MachinaErrorKind::InvalidRegister(register) => {
                 write!(f, "Invalid register `%{}`", register)
+            }
+            MachinaErrorKind::OutOfMemory => {
+                write!(f, "Out of Memory")
             }
         }
     }

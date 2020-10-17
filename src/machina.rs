@@ -18,20 +18,34 @@ macro_rules! as_expr {
     ($e: expr) => { $e }
 }
 
-macro_rules! numeric_op {
-    ($lhs: expr, $rhs: expr, $op:tt) => {
-        if $lhs.is_num() || $rhs.is_num() {
-            Value::from(as_expr!($lhs.as_num() $op $rhs.as_num()))
+macro_rules! binary_op {
+    ($self:expr, $instruction:expr, $op:tt) => {{
+        let lhs = $self.get($instruction.get(0));
+        let rhs = $self.get($instruction.get(1));
+        let val = if lhs.is_num() || rhs.is_num() {
+            Value::from(as_expr!(lhs.as_num() $op rhs.as_num()))
         } else {
-            Value::from(as_expr!($lhs.as_int() $op $rhs.as_int()))
-        }
-    };
+            Value::from(as_expr!(lhs.as_int() $op rhs.as_int()))
+        };
+        $self.set($instruction.register(0), val);
+    }};
 }
 
 macro_rules! integer_op {
-    ($lhs: expr, $rhs: expr, $op:tt) => {
-        Value::from(as_expr!($lhs.as_int() $op $rhs.as_int()))
-    };
+    ($self:expr, $instruction:expr, $op:tt) => {{
+        let lhs = $self.get($instruction.get(0));
+        let rhs = $self.get($instruction.get(1));
+        let val = Value::from(as_expr!(lhs.as_int() $op rhs.as_int()));
+        $self.set($instruction.register(0), val);
+    }};
+}
+
+macro_rules! unary_op {
+    ($self:expr, $instruction:expr, $op:tt) => {{
+        let rhs = $self.get($instruction.get(0));
+        let val = Value::from(as_expr!($op rhs.as_int()));
+        $self.set($instruction.register(0), val);
+    }};
 }
 
 
@@ -113,6 +127,7 @@ impl<'a> Machina<'a> {
                 OpCode::Call => {
                     let first = instruction.register(2);
                     let last  = instruction.register(3);
+
                     if first > last {
                         panic!("Invalid register range for CALL instruction")
                     }
@@ -139,128 +154,95 @@ impl<'a> Machina<'a> {
                 OpCode::JLt => {
                     let a = self.get(instruction.get(1));
                     let b = self.get(instruction.get(2));
-                    if a.get_int() < b.get_int() {
+                    if a < b {
                         ip = instruction.position(0) as usize;
                     }
                 }
                 OpCode::JLe => {
                     let a = self.get(instruction.get(1));
                     let b = self.get(instruction.get(2));
-                    if a.get_int() <= b.get_int() {
+                    if a <= b {
                         ip = instruction.position(0) as usize;
                     }
                 }
                 OpCode::JGt => {
                     let a = self.get(instruction.get(1));
                     let b = self.get(instruction.get(2));
-                    if a.get_int() > b.get_int() {
+                    if a > b {
                         ip = instruction.position(0) as usize;
                     }
                 }
                 OpCode::JGe => {
                     let a = self.get(instruction.get(1));
                     let b = self.get(instruction.get(2));
-                    if a.get_int() >= b.get_int() {
+                    if a >= b {
                         ip = instruction.position(0) as usize;
                     }
                 }
                 OpCode::JEq => {
                     let a = self.get(instruction.get(1));
                     let b = self.get(instruction.get(2));
-                    if a.get_int() == b.get_int() {
+                    if a == b {
                         ip = instruction.position(0) as usize;
                     }
                 }
                 OpCode::JNe => {
                     let a = self.get(instruction.get(1));
                     let b = self.get(instruction.get(2));
-                    if a.get_int() != b.get_int() {
+                    if a != b {
                         ip = instruction.position(0) as usize;
                     }
                 }
                 OpCode::Lt => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.as_int() < b.as_int()));
+                    binary_op!(self, instruction, <);
                 }
                 OpCode::Le => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.as_int() <= b.as_int()));
+                    binary_op!(self, instruction, <=);
                 }
                 OpCode::Gt => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.as_int() > b.as_int()));
+                    binary_op!(self, instruction, >);
                 }
                 OpCode::Ge => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a.as_int() >= b.as_int()));
+                    binary_op!(self, instruction, >=);
                 }
                 OpCode::Eq => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a == b));
+                    binary_op!(self, instruction, ==);
                 }
                 OpCode::Ne => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), Value::from(a != b));
+                    binary_op!(self, instruction, !=);
                 }
                 OpCode::Add => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), numeric_op!(a, b, +));
+                    binary_op!(self, instruction, +);
                 }
                 OpCode::Sub => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), numeric_op!(a, b, -));
+                    binary_op!(self, instruction, -);
                 }
                 OpCode::Mul => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), numeric_op!(a, b, *));
+                    binary_op!(self, instruction, *);
                 }
                 OpCode::Div => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), numeric_op!(a, b, /));
+                    binary_op!(self, instruction, /);
                 }
                 OpCode::Mod => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), integer_op!(a, b, %));
+                    integer_op!(self, instruction, %);
                 }
                 OpCode::And => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), integer_op!(a, b, &));
+                    integer_op!(self, instruction, &);
                 }
                 OpCode::Or => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), integer_op!(a, b, |));
+                    integer_op!(self, instruction, |);
                 }
                 OpCode::Xor => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), integer_op!(a, b, ^));
+                    integer_op!(self, instruction, ^);
                 }
                 OpCode::Shl => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), integer_op!(a, b, <<));
+                    integer_op!(self, instruction, <<);
                 }
                 OpCode::Shr => {
-                    let a = self.get(instruction.get(0));
-                    let b = self.get(instruction.get(1));
-                    self.set(instruction.register(0), integer_op!(a, b, >>));
+                    integer_op!(self, instruction, >>);
                 }
                 OpCode::Not => {
-                    let a = self.get(instruction.get(0));
-                    self.set(instruction.register(0), Value::from(!a.as_int()));
+                    unary_op!(self, instruction, !);
                 }
                 OpCode::Ret => {
                     return self.get(instruction.get(0));

@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Display};
+use std::{cmp::Ordering, fmt::{Debug, Display}};
 
 const MAX_NUM:  u64 = 0xfff8000000000000;
 const NAN_TAG:  u64 = MAX_NUM;
@@ -9,7 +9,7 @@ const TRUE_TAG: u64 = 0xfffc000000000000;
 const FLSE_TAG: u64 = 0xfffd000000000000;
 const NULL_TAG: u64 = 0xffff000000000000;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Value(u64);
 
 const TRUE:  Value = Value(TRUE_TAG);
@@ -27,6 +27,11 @@ impl Value {
     #[inline(always)]
     pub fn is_int(&self) -> bool {
         (self.0 & INT_TAG) == INT_TAG
+    }
+
+    #[inline(always)]
+    pub fn is_numeric(&self) -> bool {
+        self.is_num() || self.is_int()
     }
 
     #[inline(always)]
@@ -202,6 +207,24 @@ impl Display for Value {
     }
 }
 
+
+impl PartialOrd for Value {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self.is_num() && other.is_numeric() {
+            let other = other.as_num();
+            self.as_num().partial_cmp(&other)
+        } else if self.is_int() && other.is_numeric() {
+            let other = other.as_int();
+            Some(self.as_int().cmp(&other))
+        } else if self.is_char() && other.is_char() {
+            let other = other.get_char();
+            Some(self.get_char().cmp(&other))
+        } else {
+            None
+        }
+    }
+}
+
 impl From<bool> for Value {
 
     #[inline(always)]
@@ -345,5 +368,37 @@ mod tests {
         assert_eq!(a, b);
         assert_ne!(a, c);
         assert_ne!(b, c);
+    }
+
+    #[test]
+    fn ordering() {
+        let a = Value::from(123);
+        let b = Value::from(321);
+
+        assert!(a < b);
+        assert!(b > a);
+
+        let a = Value::from(123.4);
+        let b = Value::from(123.5);
+
+        assert!(a < b);
+        assert!(b > a);
+
+        let a = Value::from('a');
+        let b = Value::from('z');
+
+        assert!(a < b);
+        assert!(b > a);
+    }
+
+    #[test]
+    fn invalid_ordering() {
+        let a = Value::from(123);
+        let b = Value::from('a');
+
+        assert!(!(a > b));
+        assert!(!(a < b));
+        assert!(!(a >= b));
+        assert!(!(a <= b));
     }
 }

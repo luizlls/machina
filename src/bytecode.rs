@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, hash::{Hash, Hasher}, ops::Deref};
+use crate::object::Number;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum OpCode {
@@ -108,55 +108,12 @@ impl Instruction {
     }
 }
 
-#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub enum Constant {
 
     String(String),
 
     Number(Number),
-}
-
-
-#[derive(Debug, Clone, Copy, Default, PartialOrd, PartialEq)]
-pub struct Number(f64);
-
-impl Eq for Number {}
-
-impl Hash for Number {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.to_bits().hash(state)
-    }
-}
-
-impl Ord for Number {
-    fn cmp(&self, other: &Number) -> Ordering {
-        match self.partial_cmp(&other) {
-            Some(ord) => ord,
-            None => unreachable!(),
-        }
-    }
-}
-
-impl Deref for Number {
-    type Target = f64;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl Into<Number> for f64 {
-    fn into(self) -> Number {
-        Number(self)
-    }
-}
-
-impl Number {
-
-    #[inline(always)]
-    pub fn value(self) -> f64 {
-        self.0
-    }
 }
 
 
