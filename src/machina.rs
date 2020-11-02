@@ -4,49 +4,14 @@ use crate::{
         Function,
         OpCode,
         Operand,
-        Register
+        Register,
     },
-    value::Value
+    value::Value,
 };
 
 use std::fmt::Debug;
 
 const INITIAL_REG_SIZE: usize = 16;
-
-
-macro_rules! as_expr {
-    ($e: expr) => { $e }
-}
-
-macro_rules! binary_op {
-    ($self:expr, $instruction:expr, $op:tt) => {{
-        let lhs = $self.get($instruction.get(0));
-        let rhs = $self.get($instruction.get(1));
-        let val = if lhs.is_num() || rhs.is_num() {
-            Value::from(as_expr!(lhs.as_num() $op rhs.as_num()))
-        } else {
-            Value::from(as_expr!(lhs.as_int() $op rhs.as_int()))
-        };
-        $self.set($instruction.register(0), val);
-    }};
-}
-
-macro_rules! integer_op {
-    ($self:expr, $instruction:expr, $op:tt) => {{
-        let lhs = $self.get($instruction.get(0));
-        let rhs = $self.get($instruction.get(1));
-        let val = Value::from(as_expr!(lhs.as_int() $op rhs.as_int()));
-        $self.set($instruction.register(0), val);
-    }};
-}
-
-macro_rules! unary_op {
-    ($self:expr, $instruction:expr, $op:tt) => {{
-        let rhs = $self.get($instruction.get(0));
-        let val = Value::from(as_expr!($op rhs.as_int()));
-        $self.set($instruction.register(0), val);
-    }};
-}
 
 
 #[derive(Debug)]
@@ -151,99 +116,29 @@ impl<'a> Machina<'a> {
                         ip = instruction.position(0) as usize;
                     }
                 }
-                OpCode::JLt => {
-                    let a = self.get(instruction.get(1));
-                    let b = self.get(instruction.get(2));
-                    if a < b {
-                        ip = instruction.position(0) as usize;
-                    }
-                }
-                OpCode::JLe => {
-                    let a = self.get(instruction.get(1));
-                    let b = self.get(instruction.get(2));
-                    if a <= b {
-                        ip = instruction.position(0) as usize;
-                    }
-                }
-                OpCode::JGt => {
-                    let a = self.get(instruction.get(1));
-                    let b = self.get(instruction.get(2));
-                    if a > b {
-                        ip = instruction.position(0) as usize;
-                    }
-                }
-                OpCode::JGe => {
-                    let a = self.get(instruction.get(1));
-                    let b = self.get(instruction.get(2));
-                    if a >= b {
-                        ip = instruction.position(0) as usize;
-                    }
-                }
-                OpCode::JEq => {
-                    let a = self.get(instruction.get(1));
-                    let b = self.get(instruction.get(2));
-                    if a == b {
-                        ip = instruction.position(0) as usize;
-                    }
-                }
-                OpCode::JNe => {
-                    let a = self.get(instruction.get(1));
-                    let b = self.get(instruction.get(2));
-                    if a != b {
-                        ip = instruction.position(0) as usize;
-                    }
-                }
-                OpCode::Lt => {
-                    binary_op!(self, instruction, <);
-                }
-                OpCode::Le => {
-                    binary_op!(self, instruction, <=);
-                }
-                OpCode::Gt => {
-                    binary_op!(self, instruction, >);
-                }
-                OpCode::Ge => {
-                    binary_op!(self, instruction, >=);
-                }
-                OpCode::Eq => {
-                    binary_op!(self, instruction, ==);
-                }
-                OpCode::Ne => {
-                    binary_op!(self, instruction, !=);
-                }
-                OpCode::Add => {
-                    binary_op!(self, instruction, +);
-                }
-                OpCode::Sub => {
-                    binary_op!(self, instruction, -);
-                }
-                OpCode::Mul => {
-                    binary_op!(self, instruction, *);
-                }
-                OpCode::Div => {
-                    binary_op!(self, instruction, /);
-                }
-                OpCode::Mod => {
-                    integer_op!(self, instruction, %);
-                }
-                OpCode::And => {
-                    integer_op!(self, instruction, &);
-                }
-                OpCode::Or => {
-                    integer_op!(self, instruction, |);
-                }
-                OpCode::Xor => {
-                    integer_op!(self, instruction, ^);
-                }
-                OpCode::Shl => {
-                    integer_op!(self, instruction, <<);
-                }
-                OpCode::Shr => {
-                    integer_op!(self, instruction, >>);
-                }
-                OpCode::Not => {
-                    unary_op!(self, instruction, !);
-                }
+                OpCode::JLt => jmp_op!(self, instruction, ip, <),
+                OpCode::JLe => jmp_op!(self, instruction, ip, <=),
+                OpCode::JGt => jmp_op!(self, instruction, ip, >),
+                OpCode::JGe => jmp_op!(self, instruction, ip, >=),
+                OpCode::JEq => jmp_op!(self, instruction, ip, ==),
+                OpCode::JNe => jmp_op!(self, instruction, ip, !=),
+                OpCode::Lt  => bin_op!(self, instruction, <),
+                OpCode::Le  => bin_op!(self, instruction, <=),
+                OpCode::Gt  => bin_op!(self, instruction, >),
+                OpCode::Ge  => bin_op!(self, instruction, >=),
+                OpCode::Eq  => bin_op!(self, instruction, ==),
+                OpCode::Ne  => bin_op!(self, instruction, !=),
+                OpCode::Add => bin_op!(self, instruction, +),
+                OpCode::Sub => bin_op!(self, instruction, -),
+                OpCode::Mul => bin_op!(self, instruction, *),
+                OpCode::Div => bin_op!(self, instruction, /),
+                OpCode::Mod => int_op!(self, instruction, %),
+                OpCode::And => int_op!(self, instruction, &),
+                OpCode::Or  => int_op!(self, instruction, |),
+                OpCode::Xor => int_op!(self, instruction, ^),
+                OpCode::Shl => int_op!(self, instruction, <<),
+                OpCode::Shr => int_op!(self, instruction, >>),
+                OpCode::Not => unary_op!(self, instruction, !),
                 OpCode::Ret => {
                     return self.get(instruction.get(0));
                 }
