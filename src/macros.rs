@@ -3,7 +3,7 @@ macro_rules! as_expr {
     ($e: expr) => { $e }
 }
 
-macro_rules! bin_op {
+macro_rules! binary_op {
     ($self:expr, $instruction:expr, $op:tt) => {{
         let lhs = $self.get($instruction.get(0));
         let rhs = $self.get($instruction.get(1));
@@ -16,7 +16,7 @@ macro_rules! bin_op {
     }};
 }
 
-macro_rules! int_op {
+macro_rules! integer_op {
     ($self:expr, $instruction:expr, $op:tt) => {{
         let lhs = $self.get($instruction.get(0));
         let rhs = $self.get($instruction.get(1));
@@ -33,7 +33,7 @@ macro_rules! unary_op {
     }};
 }
 
-macro_rules! jmp_op {
+macro_rules! jump_op {
     ($self:expr, $instruction:expr, $ip:expr, $op:tt) => {{
         let lhs = $self.get($instruction.get(1));
         let rhs = $self.get($instruction.get(2));

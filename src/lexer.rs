@@ -1,4 +1,4 @@
-use crate::{error::{MachinaError, MachinaErrorKind}};
+use crate::{error::{MachinaError, Result}};
 
 use std::{fmt, str::Chars};
 
@@ -38,8 +38,6 @@ fn get_instruction(key: &str) -> Option<Token> {
     }
 }
 
-type LexerResult = Result<Token, MachinaError>;
-
 #[derive(Debug, Clone)]
 pub struct Lexer<'s> {
     source: &'s str,
@@ -74,7 +72,7 @@ impl<'s> Lexer<'s> {
         }
     }
 
-    fn next_token(&mut self) -> LexerResult {
+    fn next_token(&mut self) -> Result<Token> {
         loop {
             let token = match self.curr {
                 Some(' ')
@@ -121,11 +119,7 @@ impl<'s> Lexer<'s> {
                     continue;
                 },
                 Some(invalid) => {
-                    Err(
-                        MachinaError {
-                            kind: MachinaErrorKind::InvalidCharacter(invalid), line: self.line
-                        }
-                    )
+                    Err(MachinaError::InvalidCharacter(invalid))
                 }
                 None => Ok(Token::EOF)
             };
@@ -134,7 +128,7 @@ impl<'s> Lexer<'s> {
         }
     }
 
-    fn single(&mut self, token: Token) -> LexerResult {
+    fn single(&mut self, token: Token) -> Result<Token> {
         self.next_char();
         Ok(token)
     }
@@ -154,7 +148,7 @@ impl<'s> Lexer<'s> {
         matches!(chr, Some('0'..='9'))
     }
 
-    fn instruction(&mut self) -> LexerResult {
+    fn instruction(&mut self) -> Result<Token> {
         let mut value = String::new();
 
         while self.is_alpha(self.curr) {
@@ -164,15 +158,11 @@ impl<'s> Lexer<'s> {
         if let Some(instruction) = get_instruction(&value[..].to_lowercase()) {
             Ok(instruction)
         } else {
-            Err(
-                MachinaError {
-                    kind: MachinaErrorKind::InvalidInstruction(value.into()), line: self.line
-                }
-            )
+            Err(MachinaError::InvalidInstruction(value.into()))
         }
     }
 
-    fn identifier(&mut self, kind: Token) -> LexerResult {
+    fn identifier(&mut self, kind: Token) -> Result<Token> {
         let mut value = String::new();
 
         self.next_char(); // marker (#, @, .)
@@ -186,7 +176,7 @@ impl<'s> Lexer<'s> {
         Ok(kind)
     }
 
-    fn number(&mut self, prefix: bool) -> LexerResult {
+    fn number(&mut self, prefix: bool) -> Result<Token> {
         let mut value = String::new();
 
         if prefix {
@@ -210,7 +200,7 @@ impl<'s> Lexer<'s> {
         Ok(Token::Number)
     }
 
-    fn string(&mut self) -> LexerResult {
+    fn string(&mut self) -> Result<Token> {
         let mut value = String::new();
 
         self.next_char(); // "
@@ -241,11 +231,7 @@ impl<'s> Lexer<'s> {
                 }
                 Some('\n')
               | None => {
-                    return Err(
-                        MachinaError {
-                            kind: MachinaErrorKind::UnterminatedString, line: self.line
-                        }
-                    );
+                    return Err(MachinaError::UnterminatedString);
                 }
 
                 _ => {}
@@ -286,7 +272,7 @@ impl<'s> Lexer<'s> {
 }
 
 impl<'s> Iterator for Lexer<'s> {
-    type Item = LexerResult;
+    type Item = Result<Token>;
 
     fn next(&mut self) -> Option<Self::Item> {
         Some(self.next_token())

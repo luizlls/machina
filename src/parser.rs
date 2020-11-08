@@ -11,16 +11,14 @@ use crate::{
         Register,
     },
     error:: {
+        Result,
         MachinaError,
-        MachinaErrorKind,
     },
     lexer::{
         Lexer,
         Token,
     }
 };
-
-type ParserResult<T> = Result<T, MachinaError>;
 
 #[derive(Debug, Clone)]
 pub struct Parser<'a> {
@@ -47,7 +45,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn parse(mut self) -> ParserResult<Module> {
+    pub fn parse(mut self) -> Result<Module> {
         let mut functions = vec![];
 
         while !self.token_is(Token::EOF) {
@@ -57,7 +55,7 @@ impl<'a> Parser<'a> {
         self.build(functions)
     }
 
-    pub fn build(mut self, functions: Vec<PreFunction>) -> ParserResult<Module> {
+    pub fn build(mut self, functions: Vec<PreFunction>) -> Result<Module> {
 
         let indexes = functions.iter()
             .enumerate()
@@ -73,13 +71,13 @@ impl<'a> Parser<'a> {
             .map(|function| {
                 self.build_function(function, &indexes, &mut constants)
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(Module { functions, constants })
     }
 
     fn build_function(&mut self, function: PreFunction, functions: &HashMap<String, usize>, constants: &mut Vec<Constant>)
-        -> ParserResult<Function>
+        -> Result<Function>
     {
         let mut labels = HashMap::new();
         let mut count = 0;
@@ -98,13 +96,13 @@ impl<'a> Parser<'a> {
             .map(|instruction| {
                 self.build_instruction(instruction, &labels, &mut registers, functions, constants)
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(Function { locals: registers.len() as u8, instructions })
     }
 
     fn build_instruction(&mut self, function: PreInstruction, labels: &HashMap<String, usize>, registers: &mut HashSet<Register>, functions: &HashMap<String, usize>, constants: &mut Vec<Constant>)
-        -> ParserResult<Instruction>
+        -> Result<Instruction>
     {
         let mut operands = [Operand::None; 4];
 
@@ -127,12 +125,9 @@ impl<'a> Parser<'a> {
 
                 PreOperand::Register(register) => {
                     let register = register.parse::<u16>().ok()
-                        .ok_or({
-                            MachinaError {
-                                kind: MachinaErrorKind::InvalidRegister(register),
-                                line: function.line
-                            }
-                        })?;
+                        .ok_or(
+                            MachinaError::InvalidRegister(register)
+                        )?;
 
                     registers.insert(register);
 
@@ -142,10 +137,7 @@ impl<'a> Parser<'a> {
                 PreOperand::Function(name) => {
                     let function = functions.get(&name)
                         .ok_or({
-                            MachinaError {
-                                kind: MachinaErrorKind::FunctionNotFound(name),
-                                line:  function.line
-                            }
+                            MachinaError::FunctionNotFound(name)
                         })?;
 
                     Operand::Function(*function as u16)
@@ -153,12 +145,9 @@ impl<'a> Parser<'a> {
 
                 PreOperand::Label(label) => {
                     let position = labels.get(&label)
-                        .ok_or({
-                            MachinaError {
-                                kind: MachinaErrorKind::TargetNotFound(label),
-                                line:  function.line
-                            }
-                        })?;
+                        .ok_or(
+                            MachinaError::TargetNotFound(label)
+                        )?;
 
                     Operand::Position(*position as u16)
                 }
@@ -175,7 +164,7 @@ impl<'a> Parser<'a> {
         Operand::Constant((constants.len() - 1) as u16)
     }
 
-    fn parse_function(&mut self) -> ParserResult<PreFunction> {
+    fn parse_function(&mut self) -> Result<PreFunction> {
 
         let name = self.take(Token::Function)?;
 
@@ -195,7 +184,7 @@ impl<'a> Parser<'a> {
         Ok(PreFunction { name, blocks })
     }
 
-    fn parse_block(&mut self, label: String) -> ParserResult<Block> {
+    fn parse_block(&mut self, label: String) -> Result<Block> {
         let mut instructions = vec![];
 
         while !self.token_is(Token::Label)
@@ -208,7 +197,7 @@ impl<'a> Parser<'a> {
         Ok(Block { label, instructions })
     }
 
-    fn parse_instruction(&mut self) -> ParserResult<PreInstruction> {
+    fn parse_instruction(&mut self) -> Result<PreInstruction> {
         match self.token {
             Token::Call => self.parse_call_instruction(),
             Token::Move => self.parse_move_instruction(),
@@ -250,7 +239,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_call_instruction(&mut self) -> ParserResult<PreInstruction> {
+    fn parse_call_instruction(&mut self) -> Result<PreInstruction> {
         self.eat(Token::Call)?;
 
         let operands = vec![
@@ -265,7 +254,7 @@ impl<'a> Parser<'a> {
         Ok(PreInstruction { opcode: OpCode::Call, line, operands })
     }
 
-    fn parse_move_instruction(&mut self) -> ParserResult<PreInstruction> {
+    fn parse_move_instruction(&mut self) -> Result<PreInstruction> {
         self.eat(Token::Move)?;
 
         let operands = vec![
@@ -278,7 +267,7 @@ impl<'a> Parser<'a> {
         Ok(PreInstruction { opcode: OpCode::Move, line, operands })
     }
 
-    fn parse_jump_instructions(&mut self) -> ParserResult<PreInstruction> {
+    fn parse_jump_instructions(&mut self) -> Result<PreInstruction> {
         let opcode = match self.token {
             Token::Jmp => OpCode::Jmp,
             Token::Jt  => OpCode::Jt,
@@ -325,7 +314,7 @@ impl<'a> Parser<'a> {
         Ok(PreInstruction { opcode, line, operands })
     }
 
-    fn parse_unary_instructions(&mut self) -> ParserResult<PreInstruction> {
+    fn parse_unary_instructions(&mut self) -> Result<PreInstruction> {
         let opcode = match self.token {
             Token::Not => OpCode::Not,
             Token::Ret => OpCode::Ret,
@@ -346,7 +335,7 @@ impl<'a> Parser<'a> {
         Ok(PreInstruction { opcode, line, operands })
     }
 
-    fn parse_binary_instructions(&mut self) -> ParserResult<PreInstruction> {
+    fn parse_binary_instructions(&mut self) -> Result<PreInstruction> {
         let opcode = match self.token {
             Token::Lt => OpCode::Lt,
             Token::Le => OpCode::Le,
@@ -381,7 +370,7 @@ impl<'a> Parser<'a> {
         Ok(PreInstruction { opcode, line, operands })
     }
 
-    fn parse_operand(&mut self, kind: Token, optional: bool, eat_comma: bool) -> ParserResult<PreOperand> {
+    fn parse_operand(&mut self, kind: Token, optional: bool, eat_comma: bool) -> Result<PreOperand> {
 
         if optional && matches!(self.token, Token::EOF | Token::EOL) {
             return Ok(PreOperand::None);
@@ -413,7 +402,7 @@ impl<'a> Parser<'a> {
         Ok(operand)
     }
 
-    fn next(&mut self) -> ParserResult<()> {
+    fn next(&mut self) -> Result<()> {
         self.token = if let Some(token) = self.lexer.next() {
             token?
         } else {
@@ -422,14 +411,14 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    fn next_line(&mut self) -> ParserResult<()> {
+    fn next_line(&mut self) -> Result<()> {
         while self.token_is(Token::EOL) {
             self.next()?
         }
         Ok(())
     }
 
-    fn eat(&mut self, tkn: Token) -> ParserResult<()> {
+    fn eat(&mut self, tkn: Token) -> Result<()> {
         if self.token == tkn {
             Ok(self.next()?)
         } else {
@@ -437,7 +426,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn take(&mut self, tkn: Token) -> ParserResult<String> {
+    fn take(&mut self, tkn: Token) -> Result<String> {
         let value = if self.token == tkn {
             self.lexer.take_value().unwrap()
         } else {
@@ -457,7 +446,7 @@ impl<'a> Parser<'a> {
         self.token == tkn
     }
 
-    fn expect_one_of(&self, tokens: &[Token]) -> ParserResult<()> {
+    fn expect_one_of(&self, tokens: &[Token]) -> Result<()> {
         if tokens.contains(&self.token) {
             Ok(())
         } else {
@@ -471,10 +460,7 @@ impl<'a> Parser<'a> {
             .map(|t| format!("`{}`", t)).collect::<Vec<_>>()
             .join(" or ");
 
-        MachinaError {
-            kind: MachinaErrorKind::Expected(format!("{}", expected), format!("{}", self.token)),
-            line: self.line()
-        }
+        MachinaError::Expected(format!("{}", expected), format!("{}", self.token))
     }
 }
 

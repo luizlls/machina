@@ -2,8 +2,57 @@ use std::error::Error;
 use std::fmt;
 use std::fmt::{Display};
 
+pub type Result<T> = ::std::result::Result<T, MachinaError>;
+
+#[derive(Debug, Clone)]
+pub struct Diagnostics {
+    errors: Vec<(MachinaError, Option<ErrorMetaData>)>,
+}
+
+impl Diagnostics {
+    pub fn new() -> Self {
+        Diagnostics { errors: vec![] }
+    }
+
+    pub fn empty(&self) -> bool {
+        self.errors.is_empty()
+    }
+
+    pub fn emit(&self) {
+        for (error, meta) in self.errors.iter() {
+            match meta {
+                Some(meta) => {
+                    eprintln!("ERROR [{}]: {}", meta.line, error)
+                }
+                None => {
+                    eprintln!("ERROR: {}", error)
+                }
+            }
+        }
+    }
+
+    pub fn report<T>(&mut self, error: MachinaError) -> Result<T> {
+        self.errors.push((error.clone(), None));
+
+        Err(error)
+    }
+
+    pub fn report_with_line<T>(&mut self, error: MachinaError, line: usize) -> Result<T> {
+        let meta = Some(ErrorMetaData { line });
+        self.errors.push((error.clone(), meta));
+
+        Err(error)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ErrorMetaData {
+    line: usize
+}
+
+
 #[derive(Debug, Clone, PartialEq)]
-pub enum MachinaErrorKind {
+pub enum MachinaError {
     UnterminatedString,
     Expected(String, String),
     InvalidCharacter(char),
@@ -15,49 +64,35 @@ pub enum MachinaErrorKind {
     OutOfMemory,
 }
 
-impl Display for MachinaErrorKind {
+impl Display for MachinaError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            MachinaErrorKind::UnterminatedString => {
+            MachinaError::UnterminatedString => {
                 write!(f, "Unterminated string")
             }
-            MachinaErrorKind::Expected(expected, found) => {
-                write!(f, "Expected {} but found `{}`", expected, found)
+            MachinaError::Expected(expected, found) => {
+                write!(f, "Expected {}, but found {}", expected, found)
             }
-            MachinaErrorKind::InvalidCharacter(chr) => {
+            MachinaError::InvalidCharacter(chr) => {
                 write!(f, "Invalid character `{}`", chr)
             }
-            MachinaErrorKind::InvalidInstruction(ins) => {
+            MachinaError::InvalidInstruction(ins) => {
                 write!(f, "Invalid instruction `{}`", ins)
             }
-            MachinaErrorKind::TargetNotFound(label) => {
+            MachinaError::TargetNotFound(label) => {
                 write!(f, "Target with label `{}` not found", label)
             }
-            MachinaErrorKind::FunctionNotFound(function) => {
+            MachinaError::FunctionNotFound(function) => {
                 write!(f, "Function with name `{}` not found", function)
             }
-            MachinaErrorKind::InvalidRegister(register) => {
+            MachinaError::InvalidRegister(register) => {
                 write!(f, "Invalid register `%{}`", register)
             }
-            MachinaErrorKind::OutOfMemory => {
+            MachinaError::OutOfMemory => {
                 write!(f, "Out of Memory")
             }
         }
     }
 }
 
-impl Error for MachinaErrorKind { }
-
-#[derive(Debug, Clone)]
-pub struct MachinaError {
-    pub kind: MachinaErrorKind,
-    pub line: usize
-}
-
-impl Display for MachinaError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ERROR [{}]: {}", self.line, self.kind)
-    }
-}
-
-impl Error for MachinaError {}
+impl Error for MachinaError { }
